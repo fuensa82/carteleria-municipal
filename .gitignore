@@ -1,0 +1,13 @@
+
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Archivos multimedia subidos a la aplicación
+media/
+
+# Archivos temporales y logs
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,414 @@
+/* Ventana modal para el formulario de alta de carteles. */
+.modal-cartel.oculto { display: none !important; }
+.modal-cartel:not(.oculto) {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+}
+.modal-cartel-fondo {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 28, 22, .62);
+    backdrop-filter: blur(3px);
+}
+.modal-cartel-contenido {
+    position: relative;
+    z-index: 1;
+    width: min(720px, 100%);
+    max-width: 720px;
+    max-height: min(90vh, 900px);
+    overflow-y: auto;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 28px;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .28);
+    animation: modal-cartel-entrada .18s ease-out;
+}
+.modal-cartel-cerrar {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 50%;
+    background: #eef3f0;
+    color: #26382f;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+}
+.modal-cartel-cerrar:hover { background: #dfe9e3; }
+.modal-cartel-contenido h3 { padding-right: 42px; margin-top: 0; }
+.modal-cartel-contenido form { margin-top: 20px; }
+body.modal-abierto { overflow: hidden; }
+@keyframes modal-cartel-entrada {
+    from { opacity: 0; transform: translateY(8px) scale(.99); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (max-width: 600px) {
+    .modal-cartel:not(.oculto) { padding: 10px; align-items: center; }
+    .modal-cartel-contenido { padding: 22px 16px; max-height: 94vh; border-radius: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .modal-cartel-contenido { animation: none; }
+}
+
+/* Corrección del diseño del formulario dentro de la ventana modal. */
+#formularioCartel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px 20px;
+    min-width: 0;
+}
+
+#formularioCartel > .campo {
+    min-width: 0;
+    margin: 0;
+}
+
+#formularioCartel .campo-destino {
+    display: block;
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+#formularioCartel .campo-destino legend {
+    max-width: 100%;
+    white-space: normal;
+}
+
+#formularioCartel .campo-destino .opcion {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    margin: 12px 0;
+    box-sizing: border-box;
+    white-space: normal;
+}
+
+#formularioCartel .campo-destino .opcion input[type="radio"] {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0;
+}
+
+#formularioCartel #pantallasNuevas {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+}
+
+#formularioCartel .vista-previa,
+#formularioCartel .acciones-formulario {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+#formularioCartel .vista-previa img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.modal-cartel-contenido {
+    width: min(760px, 100%);
+    max-width: 760px;
+    overflow-x: hidden;
+}
+
+@media (max-width: 600px) {
+    #formularioCartel {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+
+    #formularioCartel .campo-destino,
+    #formularioCartel .vista-previa,
+    #formularioCartel .acciones-formulario {
+        grid-column: 1;
+    }
+}
+
+
+/* Modal de configuración de carteles */
+.modal-configuracion-contenido {
+    width: min(680px, 100%);
+    max-width: 680px;
+    max-height: min(90vh, 900px);
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+.modal-configuracion-contenido .configuracion-cartel {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    min-width: 0;
+}
+.modal-configuracion-contenido .configuracion-cartel h4 { display: none; }
+.modal-configuracion-contenido .campo-destino {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 18px 0;
+}
+.modal-configuracion-contenido .campo-destino .opcion {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+    margin: 12px 0;
+}
+.modal-configuracion-contenido .campo-destino .opcion input[type="radio"],
+.modal-configuracion-contenido .seleccion-pantallas input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0;
+}
+.modal-configuracion-contenido .seleccion-pantallas {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+}
+.modal-configuracion-contenido .acciones-formulario {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+/* Gestión de pantallas */
+#formularioPantalla.formulario-pantalla {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 8px 0 0;
+    border-top: 0;
+}
+#formularioPantalla .campo { min-width: 0; margin: 0; }
+#formularioPantalla .acciones-formulario { display: flex; flex-wrap: wrap; gap: 10px; }
+.acciones-pantalla { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+@media (max-width: 600px) {
+    .acciones-pantalla { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+
+/* Ajuste específico de la lista de pantallas dentro de la modal de alta. */
+#formularioCartel #pantallasNuevas {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    border-left: 3px solid #d8e0dc;
+    text-align: left;
+}
+
+#formularioCartel #pantallasNuevas label.opcion,
+#formularioCartel .seleccion-pantallas label.opcion {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 6px 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+    box-sizing: border-box !important;
+}
+
+#formularioCartel #pantallasNuevas label.opcion input[type="checkbox"],
+#formularioCartel .seleccion-pantallas label.opcion input[type="checkbox"] {
+    display: inline-block !important;
+    position: static !important;
+    flex: 0 0 16px !important;
+    width: 16px !important;
+    min-width: 16px !important;
+    height: 16px !important;
+    margin: 0 !important;
+}
+
+#formularioCartel #pantallasNuevas label.opcion span {
+    display: inline !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    white-space: normal !important;
+}
+
+
+/* Titular y vista previa dentro de las ventanas modales */
+#formularioCartel .campo-titular,
+.modal-configuracion-contenido .campo-titular {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+#formularioCartel .campo-titular textarea,
+.modal-configuracion-contenido .campo-titular textarea {
+    width: 100%;
+    min-height: 64px;
+    resize: vertical;
+    border: 1px solid #cbd7ce;
+    border-radius: 7px;
+    padding: 11px;
+    font: inherit;
+}
+#formularioCartel .campo-titular select,
+.modal-configuracion-contenido .campo-titular select {
+    width: 100%;
+    max-width: 240px;
+    border: 1px solid #cbd7ce;
+    border-radius: 7px;
+    padding: 10px;
+    background: #fff;
+}
+#formularioCartel .campo-titular textarea:focus,
+#formularioCartel .campo-titular select:focus,
+.modal-configuracion-contenido .campo-titular textarea:focus,
+.modal-configuracion-contenido .campo-titular select:focus {
+    outline: 2px solid #8bc5a5;
+    outline-offset: 1px;
+}
+#formularioCartel .marco-vista-previa,
+.modal-configuracion-contenido .marco-vista-previa {
+    position: relative;
+    display: block;
+    width: min(100%, 520px);
+    margin-top: 8px;
+    overflow: hidden;
+    background: #e9eeeb;
+    border: 1px solid #dce5df;
+    border-radius: 8px;
+    line-height: 0;
+}
+#formularioCartel .marco-vista-previa > img,
+.modal-configuracion-contenido .marco-vista-previa > img {
+    display: block;
+    width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    background: #e9eeeb;
+}
+#formularioCartel .banda-titular-previa,
+.modal-configuracion-contenido .banda-titular-previa {
+    position: absolute;
+    left: 0;
+    right: 0;
+    max-height: 15%;
+    overflow: hidden;
+    padding: 8px 12px;
+    background: rgba(45, 45, 45, .72);
+    color: #fff;
+    font-size: clamp(12px, 2.2vw, 20px);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+#formularioCartel .marco-vista-previa[data-posicion="inferior"] .banda-titular-previa,
+.modal-configuracion-contenido .marco-vista-previa[data-posicion="inferior"] .banda-titular-previa { bottom: 0; }
+#formularioCartel .marco-vista-previa[data-posicion="superior"] .banda-titular-previa,
+.modal-configuracion-contenido .marco-vista-previa[data-posicion="superior"] .banda-titular-previa { top: 0; }
+.modal-configuracion-contenido .vista-previa-config > img { max-height: 220px; }
+@media (max-width: 600px) {
+    #formularioCartel .campo-titular,
+    .modal-configuracion-contenido .campo-titular { grid-column: 1; }
+}
+
+/* Compactar las ventanas modales */
+.modal-cartel-contenido {
+    width: min(680px, 100%);
+    max-width: 680px;
+    max-height: 88vh;
+    padding: 20px 22px;
+}
+
+.modal-cartel-contenido h3 {
+    margin-bottom: 5px;
+}
+
+.modal-cartel-contenido form {
+    margin-top: 12px;
+}
+
+#formularioCartel {
+    gap: 12px 16px;
+}
+
+#formularioCartel .campo {
+    gap: 5px;
+}
+
+#formularioCartel .campo-destino {
+    padding: 10px 12px;
+    margin: 8px 0;
+}
+
+#formularioCartel .campo-destino .opcion {
+    margin: 7px 0;
+}
+
+#formularioCartel .campo-titular textarea,
+.modal-configuracion-contenido .campo-titular textarea {
+    min-height: 48px;
+    padding: 8px 10px;
+}
+
+#formularioCartel .marco-vista-previa > img {
+    max-height: 190px;
+}
+
+.modal-configuracion-contenido .vista-previa-config > img {
+    max-height: 160px;
+}
+
+.modal-configuracion-contenido .campo-destino {
+    margin: 10px 0;
+}
+
+.modal-configuracion-contenido .acciones-formulario {
+    margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+    .modal-cartel-contenido {
+        padding: 18px 14px;
+        max-height: 94vh;
+    }
+}

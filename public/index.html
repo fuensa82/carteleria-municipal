@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cartelería Municipal</title>
+    <link rel="stylesheet" href="/css/estilos.css">
+    <link rel="stylesheet" href="/css/modal-cartel.css">
+    <script src="/js/administracion.js" defer></script>
+</head>
+<body>
+<header class="cabecera">
+    <div class="contenedor cabecera-interior">
+        <div class="marca">
+            <div class="marca-icono"><img src="/img/escudo.png" alt="Escudo del Ayuntamiento de Fuensalida"></div>
+            <div><h1>Cartelería Municipal</h1><p>Gestión de contenidos y publicidad</p></div>
+        </div>
+        <div class="indicador"><span class="punto"></span>Panel de administración</div>
+    </div>
+</header>
+<main class="contenedor principal">
+    <section class="titulo-seccion">
+        <div><h2>Carteles</h2><p>Administra las imágenes disponibles para las pantallas municipales.</p></div>
+        <button id="mostrarFormulario" class="boton boton-principal" type="button">+ Añadir cartel</button>
+    </section>
+
+    <div id="modalCartel" class="modal-cartel oculto" aria-hidden="true">
+      <div class="modal-cartel-fondo" data-cerrar-modal></div>
+      <section id="panelSubida" class="panel-subida modal-cartel-contenido" role="dialog" aria-modal="true" aria-labelledby="tituloModalCartel">
+        <button type="button" id="cerrarModalCartel" class="modal-cartel-cerrar" aria-label="Cerrar ventana">&times;</button>
+        <h3 id="tituloModalCartel">Añadir un cartel</h3>
+        <p class="texto-secundario">Selecciona una imagen JPG, PNG, WEBP o GIF de hasta 15 MB.</p>
+        <form id="formularioCartel">
+            <div class="campo"><label for="nombre">Nombre del cartel</label><input id="nombre" name="nombre" type="text" maxlength="150" required placeholder="Ej. Actividades culturales"></div>
+            <div class="campo"><label for="imagen">Archivo de imagen</label><input id="imagen" name="imagen" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></div>
+            <div class="campo campo-corto"><label for="duracionSegundos">Duración en pantalla (segundos)</label><input id="duracionSegundos" name="duracion_segundos" type="number" min="3" max="3600" step="1" value="15" required><small>Valor predeterminado: 15 segundos. Mínimo 3 y máximo 3600.</small></div>
+            <div class="campo campo-titular">
+                <label for="titularNuevo">Titular (opcional)</label>
+                <textarea id="titularNuevo" name="titular" maxlength="150" rows="2" placeholder="Texto que aparecerá sobre la imagen"></textarea>
+                <small><span id="contadorTitularNuevo">0</span>/150 caracteres</small>
+                <label for="posicionTitularNueva">Posición del titular</label>
+                <select id="posicionTitularNueva" name="posicion_titular">
+                    <option value="inferior" selected>Inferior</option>
+                    <option value="superior">Superior</option>
+                </select>
+            </div>
+            <fieldset class="campo campo-destino"><legend>¿Dónde se mostrará?</legend>
+                <label class="opcion"><input type="radio" name="destino" value="todas" checked> Todas las pantallas</label>
+                <label class="opcion"><input type="radio" name="destino" value="seleccionadas" id="destinoSeleccionadas"> Solo las pantallas seleccionadas</label>
+                <div id="pantallasNuevas" class="seleccion-pantallas"><p class="texto-secundario">Todavía no hay pantallas registradas. Registra alguna en el apartado «Pantallas».</p></div>
+            </fieldset>
+            <div id="vistaPreviaNueva" class="vista-previa oculto">
+                <p class="texto-secundario">Vista previa del cartel con el titular:</p>
+                <div class="marco-vista-previa" id="marcoVistaPreviaNueva" data-posicion="inferior">
+                    <img id="imagenNueva" alt="Vista previa del cartel">
+                    <div class="banda-titular-previa oculto" id="bandaTitularNueva"></div>
+                </div>
+            </div>
+            <div class="acciones-formulario"><button class="boton boton-principal" type="submit" id="guardarCartel">Guardar cartel</button><button class="boton boton-secundario" type="button" id="cancelarFormulario">Cancelar</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div id="mensaje" class="mensaje oculto" role="status" aria-live="polite"></div>
+
+    <section class="panel-lista">
+        <div class="barra-lista"><div><h3>Biblioteca de carteles</h3><span id="contador" class="texto-secundario">Cargando carteles...</span></div>
+            <div class="filtros"><input id="busqueda" type="search" placeholder="Buscar cartel..." aria-label="Buscar cartel"><select id="filtroEstado" aria-label="Filtrar por estado"><option value="todos">Todos los estados</option><option value="activos">Activos</option><option value="inactivos">Inactivos</option></select></div>
+        </div>
+        <div class="cabecera-lista"><span>Cartel</span><span>Información</span><span>Estado</span><span>Acciones</span></div>
+        <div id="listaCarteles" class="lista-carteles"><div class="estado-vacio">Cargando carteles...</div></div>
+    </section>
+
+    <section class="panel-lista panel-pantallas">
+        <div class="barra-lista"><div><h3>Pantallas</h3><p class="texto-secundario">Registra cada televisor o dispositivo Raspberry Pi. El código debe ser único.</p></div><button id="mostrarFormularioPantalla" class="boton boton-principal" type="button">+ Añadir pantalla</button></div>
+        <div id="modalPantalla" class="modal-cartel oculto" aria-hidden="true">
+            <div class="modal-cartel-fondo" data-cerrar-pantalla></div>
+            <section class="modal-cartel-contenido" role="dialog" aria-modal="true" aria-labelledby="tituloModalPantalla">
+                <button type="button" class="modal-cartel-cerrar" id="cerrarModalPantalla" aria-label="Cerrar ventana">&times;</button>
+                <h3 id="tituloModalPantalla">Añadir pantalla</h3>
+                <p class="texto-secundario">Registra un televisor o dispositivo Raspberry Pi.</p>
+                <form id="formularioPantalla" class="formulario-pantalla">
+                    <div class="campo"><label for="nombrePantalla">Nombre</label><input id="nombrePantalla" name="nombre" maxlength="100" required placeholder="Ej. Vestíbulo del Ayuntamiento"></div>
+                    <div class="campo"><label for="codigoPantalla">Código único</label><input id="codigoPantalla" name="codigo" maxlength="64" required placeholder="Ej. AYTO-01"><small>Se utilizará para identificar el dispositivo cuando configuremos las Raspberry Pi.</small></div>
+                    <div class="campo"><label for="ubicacionPantalla">Ubicación (opcional)</label><input id="ubicacionPantalla" name="ubicacion" maxlength="150" placeholder="Ej. Planta baja"></div>
+                    <div class="acciones-formulario"><button class="boton boton-principal" type="submit" id="guardarPantalla">Registrar pantalla</button><button class="boton boton-secundario" type="button" id="cancelarPantalla">Cancelar</button></div>
+                </form>
+            </section>
+        </div>
+        <div id="listaPantallas" class="lista-pantallas"><div class="estado-vacio">Cargando pantallas...</div></div>
+    </section>
+</main>
+<footer class="pie"><div class="contenedor">Cartelería Municipal · Ayuntamiento de Fuensalida</div></footer>
+</body>
+</html>
