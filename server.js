@@ -88,7 +88,6 @@ app.get('/api/reproductor/:codigo/carteles', async (req, res, next) => {
     }
 
     try {
-        // Comprobar que la pantalla existe y está activa.
         const [pantallas] = await db.execute(`
             SELECT id, nombre, codigo, ubicacion
             FROM pantallas
@@ -104,14 +103,12 @@ app.get('/api/reproductor/:codigo/carteles', async (req, res, next) => {
 
         const pantalla = pantallas[0];
 
-        // Registrar la fecha de última sincronización.
         await db.execute(`
             UPDATE pantallas
             SET ultima_sincronizacion = NOW()
             WHERE id = ?
         `, [pantalla.id]);
 
-        // Obtener los carteles activos destinados a esta pantalla.
         const [carteles] = await db.execute(`
             SELECT
                 c.id,
@@ -139,7 +136,6 @@ app.get('/api/reproductor/:codigo/carteles', async (req, res, next) => {
             ORDER BY c.fecha_alta ASC, c.id ASC
         `, [pantalla.id]);
 
-        // Preparar la URL de cada imagen.
         const resultado = carteles.map(cartel => ({
             ...cartel,
             url_imagen: `/media/imagenes/${encodeURIComponent(cartel.archivo)}`
@@ -172,6 +168,7 @@ app.get('/api/carteles', async (req, res, next) => {
             FROM carteles
             ORDER BY fecha_alta DESC, id DESC
         `);
+
         if (carteles.length) {
             const ids = carteles.map(c => c.id);
             const marcas = ids.map(() => '?').join(',');
@@ -182,6 +179,7 @@ app.get('/api/carteles', async (req, res, next) => {
                 WHERE cp.cartel_id IN (${marcas})
                 ORDER BY p.nombre
             `, ids);
+
             const porCartel = new Map();
             for (const fila of asignaciones) {
                 if (!porCartel.has(fila.cartel_id)) porCartel.set(fila.cartel_id, []);
@@ -189,19 +187,50 @@ app.get('/api/carteles', async (req, res, next) => {
             }
             for (const cartel of carteles) cartel.pantallas = porCartel.get(cartel.id) || [];
         }
+
         res.json(carteles);
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
 
-// Listado de pantallas registradas.
+// Listado de pantallas registradas con información de monitorización.
 app.get('/api/pantallas', async (req, res, next) => {
     try {
         const [pantallas] = await db.execute(`
-            SELECT id, nombre, codigo, ubicacion, activa, fecha_alta
-            FROM pantallas ORDER BY nombre, id
+            SELECT
+                p.id,
+                p.nombre,
+                p.codigo,
+                p.ubicacion,
+                p.activa,
+                p.fecha_alta,
+                p.ultima_sincronizacion,
+                (
+                    SELECT COUNT(*)
+                    FROM carteles c
+                    WHERE c.activo = 1
+                      AND (
+                          c.destino = 'todas'
+                          OR (
+                              c.destino = 'seleccionadas'
+                              AND EXISTS (
+                                  SELECT 1
+                                  FROM carteles_pantallas cp
+                                  WHERE cp.cartel_id = c.id
+                                    AND cp.pantalla_id = p.id
+                              )
+                          )
+                      )
+                ) AS total_carteles
+            FROM pantallas p
+            ORDER BY p.nombre, p.id
         `);
+
         res.json(pantallas);
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
 
 // Alta de una pantalla. El código debe ser único.
@@ -209,17 +238,22 @@ app.post('/api/pantallas', async (req, res, next) => {
     const nombre = String(req.body.nombre || '').trim();
     const codigo = String(req.body.codigo || '').trim();
     const ubicacion = String(req.body.ubicacion || '').trim();
+
     if (!nombre || nombre.length > 100 || !codigo || codigo.length > 64 || ubicacion.length > 150) {
         return res.status(400).json({ error: 'Indica un nombre y un código válidos. La ubicación es opcional.' });
     }
+
     try {
         const [resultado] = await db.execute(
             'INSERT INTO pantallas (nombre, codigo, ubicacion, activa) VALUES (?, ?, ?, 1)',
             [nombre, codigo, ubicacion || null]
         );
+
         res.status(201).json({ mensaje: 'Pantalla registrada correctamente.', id: resultado.insertId });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Ya existe una pantalla con ese código.' });
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Ya existe una pantalla con ese código.' });
+        }
         next(error);
     }
 });
@@ -230,37 +264,54 @@ app.patch('/api/pantallas/:id', async (req, res, next) => {
     const nombre = String(req.body.nombre || '').trim();
     const codigo = String(req.body.codigo || '').trim();
     const ubicacion = String(req.body.ubicacion || '').trim();
+
     if (!Number.isSafeInteger(id) || id < 1 || !nombre || nombre.length > 100 ||
         !codigo || codigo.length > 64 || ubicacion.length > 150) {
         return res.status(400).json({ error: 'Indica un nombre y un código válidos. La ubicación es opcional.' });
     }
+
     try {
         const [resultado] = await db.execute(
             'UPDATE pantallas SET nombre = ?, codigo = ?, ubicacion = ? WHERE id = ?',
             [nombre, codigo, ubicacion || null, id]
         );
+
         if (!resultado.affectedRows) {
             const [existe] = await db.execute('SELECT id FROM pantallas WHERE id = ?', [id]);
             if (!existe.length) return res.status(404).json({ error: 'No se ha encontrado la pantalla.' });
         }
+
         res.json({ mensaje: 'Pantalla actualizada correctamente.' });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Ya existe una pantalla con ese código.' });
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Ya existe una pantalla con ese código.' });
+        }
         next(error);
     }
 });
 
 // Activar o desactivar una pantalla.
-app.patch('/api/pantallas/:id/estado' , async (req, res, next) => {
+app.patch('/api/pantallas/:id/estado', async (req, res, next) => {
     const id = Number(req.params.id);
+
     if (!Number.isSafeInteger(id) || id < 1 || typeof req.body.activa !== 'boolean') {
         return res.status(400).json({ error: 'Los datos enviados no son válidos.' });
     }
+
     try {
-        const [resultado] = await db.execute('UPDATE pantallas SET activa = ? WHERE id = ?', [req.body.activa ? 1 : 0, id]);
-        if (!resultado.affectedRows) return res.status(404).json({ error: 'No se ha encontrado la pantalla.' });
+        const [resultado] = await db.execute(
+            'UPDATE pantallas SET activa = ? WHERE id = ?',
+            [req.body.activa ? 1 : 0, id]
+        );
+
+        if (!resultado.affectedRows) {
+            return res.status(404).json({ error: 'No se ha encontrado la pantalla.' });
+        }
+
         res.json({ mensaje: 'Estado de la pantalla actualizado.' });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
 
 // Subir imagen y guardar configuración inicial.
@@ -268,8 +319,11 @@ app.post('/api/carteles', (req, res, next) => {
     subirImagen.single('imagen')(req, res, async error => {
         if (error) {
             const esTamano = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
-            return res.status(400).json({ error: esTamano ? 'La imagen no puede superar los 15 MB.' : error.message });
+            return res.status(400).json({
+                error: esTamano ? 'La imagen no puede superar los 15 MB.' : error.message
+            });
         }
+
         if (!req.file) return res.status(400).json({ error: 'Debes seleccionar una imagen.' });
 
         const nombre = String(req.body.nombre || '').trim();
@@ -283,15 +337,19 @@ app.post('/api/carteles', (req, res, next) => {
             await fsp.unlink(req.file.path).catch(() => {});
             return res.status(400).json({ error: 'El nombre es obligatorio y no puede superar los 150 caracteres.' });
         }
+
         if (!Number.isInteger(duracion) || duracion < 3 || duracion > 3600) {
             await fsp.unlink(req.file.path).catch(() => {});
             return res.status(400).json({ error: 'La duración debe estar entre 3 y 3600 segundos.' });
         }
+
         if (titular.length > 150 || !['superior', 'inferior'].includes(posicionTitular)) {
             await fsp.unlink(req.file.path).catch(() => {});
             return res.status(400).json({ error: 'El titular no puede superar los 150 caracteres y su posición debe ser superior o inferior.' });
         }
-        if (!['todas', 'seleccionadas'].includes(destino) || idsPantallas === null || (destino === 'seleccionadas' && idsPantallas.length === 0)) {
+
+        if (!['todas', 'seleccionadas'].includes(destino) || idsPantallas === null ||
+            (destino === 'seleccionadas' && idsPantallas.length === 0)) {
             await fsp.unlink(req.file.path).catch(() => {});
             return res.status(400).json({ error: 'La selección de pantallas no es válida.' });
         }
@@ -301,21 +359,29 @@ app.post('/api/carteles', (req, res, next) => {
                 await fsp.unlink(req.file.path).catch(() => {});
                 return res.status(400).json({ error: 'Una o varias pantallas seleccionadas no existen o están inactivas.' });
             }
+
             const contenido = await fsp.readFile(req.file.path);
             const hash = crypto.createHash('sha256').update(contenido).digest('hex');
+
             const [resultado] = await db.execute(`
                 INSERT INTO carteles
                     (nombre, archivo, tipo_mime, hash_sha256, activo,
                      duracion_segundos, destino, titular, posicion_titular)
                 VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
-            `, [nombre, req.file.filename, req.file.mimetype, hash,
-                duracion, destino, titular || null, posicionTitular]);
+            `, [
+                nombre, req.file.filename, req.file.mimetype, hash,
+                duracion, destino, titular || null, posicionTitular
+            ]);
 
             if (destino === 'seleccionadas') {
                 for (const pantallaId of idsPantallas) {
-                    await db.execute('INSERT INTO carteles_pantallas (cartel_id, pantalla_id) VALUES (?, ?)', [resultado.insertId, pantallaId]);
+                    await db.execute(
+                        'INSERT INTO carteles_pantallas (cartel_id, pantalla_id) VALUES (?, ?)',
+                        [resultado.insertId, pantallaId]
+                    );
                 }
             }
+
             res.status(201).json({ mensaje: 'Cartel añadido correctamente.', id: resultado.insertId });
         } catch (err) {
             await fsp.unlink(req.file.path).catch(() => {});
@@ -333,12 +399,14 @@ app.patch('/api/carteles/:id/configuracion', async (req, res, next) => {
     const posicionTitular = String(req.body.posicion_titular || 'inferior');
     const idsPantallas = leerIdsPantallas(req.body.pantallas);
 
-    if (!Number.isSafeInteger(id) || id < 1 || !Number.isInteger(duracion) || duracion < 3 || duracion > 3600 ||
-        titular.length > 150 || !['superior', 'inferior'].includes(posicionTitular) ||
+    if (!Number.isSafeInteger(id) || id < 1 || !Number.isInteger(duracion) ||
+        duracion < 3 || duracion > 3600 || titular.length > 150 ||
+        !['superior', 'inferior'].includes(posicionTitular) ||
         !['todas', 'seleccionadas'].includes(destino) || idsPantallas === null ||
         (destino === 'seleccionadas' && idsPantallas.length === 0)) {
         return res.status(400).json({ error: 'Revisa la duración, el titular y la selección de pantallas.' });
     }
+
     try {
         const [existe] = await db.execute('SELECT id FROM carteles WHERE id = ?', [id]);
         if (!existe.length) return res.status(404).json({ error: 'No se ha encontrado el cartel.' });
@@ -356,39 +424,65 @@ app.patch('/api/carteles/:id/configuracion', async (req, res, next) => {
 
         if (destino === 'seleccionadas') {
             for (const pantallaId of idsPantallas) {
-                await db.execute('INSERT INTO carteles_pantallas (cartel_id, pantalla_id) VALUES (?, ?)', [id, pantallaId]);
+                await db.execute(
+                    'INSERT INTO carteles_pantallas (cartel_id, pantalla_id) VALUES (?, ?)',
+                    [id, pantallaId]
+                );
             }
         }
+
         res.json({ mensaje: 'Configuración del cartel actualizada.' });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
 
 app.patch('/api/carteles/:id/estado', async (req, res, next) => {
     const id = Number(req.params.id);
     const activo = req.body.activo;
+
     if (!Number.isSafeInteger(id) || id < 1 || typeof activo !== 'boolean') {
         return res.status(400).json({ error: 'Los datos enviados no son válidos.' });
     }
+
     try {
-        const [resultado] = await db.execute('UPDATE carteles SET activo = ? WHERE id = ?', [activo ? 1 : 0, id]);
-        if (!resultado.affectedRows) return res.status(404).json({ error: 'No se ha encontrado el cartel.' });
+        const [resultado] = await db.execute(
+            'UPDATE carteles SET activo = ? WHERE id = ?',
+            [activo ? 1 : 0, id]
+        );
+
+        if (!resultado.affectedRows) {
+            return res.status(404).json({ error: 'No se ha encontrado el cartel.' });
+        }
+
         res.json({ mensaje: 'Estado actualizado correctamente.' });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
 
 app.delete('/api/carteles/:id', async (req, res, next) => {
     const id = Number(req.params.id);
-    if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Identificador no válido.' });
+
+    if (!Number.isSafeInteger(id) || id < 1) {
+        return res.status(400).json({ error: 'Identificador no válido.' });
+    }
+
     try {
         const [filas] = await db.execute('SELECT archivo FROM carteles WHERE id = ?', [id]);
         if (!filas.length) return res.status(404).json({ error: 'No se ha encontrado el cartel.' });
+
         await db.execute('DELETE FROM carteles WHERE id = ?', [id]);
+
         const archivo = path.basename(filas[0].archivo);
         await fsp.unlink(path.join(IMAGE_DIR, archivo)).catch(error => {
             if (error.code !== 'ENOENT') console.error('No se pudo borrar el archivo:', error.message);
         });
+
         res.json({ mensaje: 'Cartel eliminado correctamente.' });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 });
 
 app.use((error, req, res, next) => {

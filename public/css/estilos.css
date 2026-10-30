@@ -543,3 +543,70 @@ h1 {
 @media (max-width: 600px) {
     .campo-titular { grid-column: 1; }
 }
+
+/* Monitorización de pantallas */
+
+.acciones-cabecera-pantallas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.fila-pantalla {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.datos-pantalla {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.detalle-pantalla {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-top: 5px;
+    color: #68776e;
+    font-size: 12px;
+}
+
+.estado-conexion.conectada {
+    color: #17683c;
+    background: #e5f5eb;
+}
+
+.estado-conexion.desconectada {
+    color: #a32d2d;
+    background: #fff0f0;
+}
+
+.estado-conexion.inactivo {
+    color: #626b65;
+    background: #edf0ed;
+}
+
+#actualizarPantallas:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+@media (max-width: 700px) {
+    .acciones-cabecera-pantallas {
+        width: 100%;
+    }
+
+    .acciones-cabecera-pantallas .boton {
+        flex: 1 1 auto;
+    }
+
+    .fila-pantalla {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .datos-pantalla {
+        grid-column: 1 / -1;
+    }
+}

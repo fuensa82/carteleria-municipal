@@ -115,9 +115,83 @@ async function cargarPantallas() {
         actualizarOpcionesNuevas();
     } catch (e) { listaPantallas.innerHTML = `<div class="estado-vacio">No se han podido cargar las pantallas. ${escapar(e.message)}</div>`; }
 }
+function formatearFechaHora(fecha) {
+    if (!fecha) return 'Nunca ha sincronizado';
+
+    const valor = new Date(String(fecha).replace(' ', 'T'));
+
+    if (Number.isNaN(valor.getTime())) return 'Fecha desconocida';
+
+    return valor.toLocaleString('es-ES', {
+        dateStyle: 'short',
+        timeStyle: 'medium'
+    });
+}
+
+function obtenerEstadoConexion(pantalla) {
+    if (Number(pantalla.activa) !== 1) {
+        return { texto: 'Inactiva', clase: 'inactivo' };
+    }
+
+    if (!pantalla.ultima_sincronizacion) {
+        return { texto: 'Nunca conectada', clase: 'desconectada' };
+    }
+
+    const fecha = new Date(
+        String(pantalla.ultima_sincronizacion).replace(' ', 'T')
+    );
+
+    if (Number.isNaN(fecha.getTime())) {
+        return { texto: 'Estado desconocido', clase: 'desconectada' };
+    }
+
+    const segundos = (Date.now() - fecha.getTime()) / 1000;
+
+    return segundos <= 180
+        ? { texto: 'Conectada', clase: 'conectada' }
+        : { texto: 'Sin conexión', clase: 'desconectada' };
+}
+
 function renderizarPantallas() {
-    if (!pantallas.length) { listaPantallas.innerHTML = '<div class="estado-vacio">Todavía no hay pantallas registradas.</div>'; return; }
-    listaPantallas.innerHTML = pantallas.map(p => `<article class="fila-pantalla"><div><strong>${escapar(p.nombre)}</strong><div class="texto-secundario">Código: ${escapar(p.codigo)}${p.ubicacion ? ` · ${escapar(p.ubicacion)}` : ''}</div></div><span class="estado ${Number(p.activa) === 1 ? 'activo' : 'inactivo'}">${Number(p.activa) === 1 ? 'Activa' : 'Inactiva'}</span><div class="acciones-pantalla"><button class="boton-pequeno" type="button" data-accion-pantalla="editar" data-id="${Number(p.id)}">Editar</button><button class="boton-pequeno" type="button" data-accion-pantalla="estado" data-id="${Number(p.id)}" data-activa="${Number(p.activa) === 1 ? '0' : '1'}">${Number(p.activa) === 1 ? 'Desactivar' : 'Activar'}</button></div></article>`).join('');
+    if (!pantallas.length) {
+        listaPantallas.innerHTML =
+            '<div class="estado-vacio">Todavía no hay pantallas registradas.</div>';
+        return;
+    }
+
+    listaPantallas.innerHTML = pantallas.map(p => {
+        const estado = obtenerEstadoConexion(p);
+
+        return `<article class="fila-pantalla">
+            <div class="datos-pantalla">
+                <strong>${escapar(p.nombre)}</strong>
+                <div class="texto-secundario">
+                    Código: ${escapar(p.codigo)}${p.ubicacion ? ` · ${escapar(p.ubicacion)}` : ''}
+                </div>
+                <div class="detalle-pantalla">
+                    <span><strong>Última sincronización:</strong> ${escapar(formatearFechaHora(p.ultima_sincronizacion))}</span>
+                    <span><strong>Carteles asignados:</strong> ${Number(p.total_carteles) || 0}</span>
+                </div>
+            </div>
+
+            <span class="estado estado-conexion ${estado.clase}">
+                ${estado.texto}
+            </span>
+
+            <div class="acciones-pantalla">
+                <button class="boton-pequeno" type="button"
+                    data-accion-pantalla="editar"
+                    data-id="${Number(p.id)}">Editar</button>
+
+                <button class="boton-pequeno" type="button"
+                    data-accion-pantalla="estado"
+                    data-id="${Number(p.id)}"
+                    data-activa="${Number(p.activa) === 1 ? '0' : '1'}">
+                    ${Number(p.activa) === 1 ? 'Desactivar' : 'Activar'}
+                </button>
+            </div>
+        </article>`;
+    }).join('');
 }
 function actualizarVistaPreviaTitularNueva() {
     if (!titularNuevo) return;
@@ -319,4 +393,22 @@ listaPantallas.addEventListener('click', async e => {
 });
 busqueda.addEventListener('input', renderizarLista);
 filtroEstado.addEventListener('change', renderizarLista);
+const botonActualizarPantallas =
+    document.getElementById('actualizarPantallas');
+
+if (botonActualizarPantallas) {
+    botonActualizarPantallas.addEventListener('click', async () => {
+        botonActualizarPantallas.disabled = true;
+
+        try {
+            await cargarPantallas();
+        } finally {
+            botonActualizarPantallas.disabled = false;
+        }
+    });
+}
+
+// Actualizar el estado de conexión cada 30 segundos.
+setInterval(cargarPantallas, 30000);
+
 Promise.all([cargarPantallas(), cargarCarteles()]);

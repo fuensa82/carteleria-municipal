@@ -72,7 +72,16 @@
     </section>
 
     <section class="panel-lista panel-pantallas">
-        <div class="barra-lista"><div><h3>Pantallas</h3><p class="texto-secundario">Registra cada televisor o dispositivo Raspberry Pi. El código debe ser único.</p></div><button id="mostrarFormularioPantalla" class="boton boton-principal" type="button">+ Añadir pantalla</button></div>
+        <div class="barra-lista">
+            <div>
+                <h3>Estado de las pantallas</h3>
+                <p class="texto-secundario">Conexión, última sincronización y carteles asignados. Se actualiza automáticamente cada 30 segundos.</p>
+            </div>
+            <div class="acciones-cabecera-pantallas">
+                <button id="actualizarPantallas" class="boton boton-secundario" type="button">Actualizar estado</button>
+                <button id="mostrarFormularioPantalla" class="boton boton-principal" type="button">+ Añadir pantalla</button>
+            </div>
+        </div>
         <div id="modalPantalla" class="modal-cartel oculto" aria-hidden="true">
             <div class="modal-cartel-fondo" data-cerrar-pantalla></div>
             <section class="modal-cartel-contenido" role="dialog" aria-modal="true" aria-labelledby="tituloModalPantalla">
