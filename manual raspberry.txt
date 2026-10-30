@@ -1,0 +1,411 @@
+MANUAL DE INSTALACIÓN Y CONFIGURACIÓN
+
+Servicio de sincronización – Cartelería Municipal
+
+Ayuntamiento de Fuensalida
+
+Versión: 1.0
+Entorno de referencia: Raspberry Pi 3 – Debian 13 (Trixie) – Python 3.13.5
+
+1. Objetivo
+
+Este manual describe cómo preparar cada Raspberry Pi para recibir y almacenar localmente los carteles que le correspondan dentro del sistema de Cartelería Municipal.
+
+Cada Raspberry se identifica mediante un código único registrado en la aplicación de administración.
+
+Ejemplos:
+
+Raspberry
+
+Código de pantalla
+
+Raspberry 1
+
+AYTO-01
+
+Raspberry 2
+
+AYTO-02
+
+Raspberry 3
+
+AYTO-03
+
+Raspberry 4
+
+AYTO-04
+
+Raspberry 5
+
+AYTO-05
+
+El servicio consulta periódicamente el servidor municipal, descarga las imágenes nuevas o modificadas y actualiza un fichero JSON con la programación de carteles.
+
+Las imágenes quedan almacenadas en la propia Raspberry para que el reproductor pueda utilizarlas localmente.
+
+2. Requisitos previos
+
+Antes de comenzar, comprobar:
+
+Raspberry Pi con Debian 13 instalado.
+
+Usuario de sistema vpalomo (o adaptar las rutas y el usuario si se utiliza otro).
+
+Python 3 instalado.
+
+Conexión de red con el servidor municipal.
+
+Pantalla previamente registrada en la aplicación de administración.
+
+Código único asignado a esa pantalla.
+
+2.1. Datos del servidor
+
+En nuestra instalación actual:
+
+Parámetro
+
+Valor
+
+Servidor de cartelería
+
+192.168.1.33
+
+Puerto
+
+3100
+
+API
+
+/api/reproductor/CODIGO/carteles
+
+Intervalo de sincronización
+
+60 segundos
+
+La dirección IP del servidor debe modificarse si cambia la ubicación de la aplicación.
+
+3. Comprobaciones iniciales
+
+Conectarse a la Raspberry por SSH y ejecutar:
+
+whoami
+hostname
+python3 --version
+
+Comprobar que Python está instalado.
+
+La instalación de referencia devuelve:
+
+Python 3.13.5
+
+No es necesario instalar Node.js ni paquetes adicionales de Python para el servicio de sincronización.
+
+3.1. Comprobar conectividad con el servidor
+
+Sustituir AYTO-01 por el código correspondiente a la Raspberry:
+
+python3 -c "import urllib.request; print(urllib.request.urlopen('http://192.168.1.33:3100/api/reproductor/AYTO-01/carteles', timeout=10).read().decode())"
+
+Debe devolver un JSON con la información de la pantalla y sus carteles.
+
+Si no devuelve información, comprobar la conexión de red, la dirección del servidor y que la pantalla esté registrada y activa.
+
+4. Crear la estructura de directorios
+
+Ejecutar:
+
+mkdir -p /home/vpalomo/carteleria/imagenes
+mkdir -p /home/vpalomo/carteleria/logs
+
+La estructura resultante será:
+
+/home/vpalomo/carteleria/
+│
+├── sincronizar.py
+├── carteles.json
+│
+├── imagenes/
+│   ├── imagen1.jpg
+│   ├── imagen2.jpg
+│   └── ...
+│
+└── logs/
+    └── sincronizacion.log
+
+Descripción:
+
+sincronizar.py: programa encargado de consultar la API y descargar las imágenes.
+
+carteles.json: programación local de carteles.
+
+imagenes/: almacenamiento local de las imágenes.
+
+logs/: registro de las operaciones y errores.
+
+Los ficheros JSON y las imágenes se generan automáticamente durante la primera sincronización correcta.
+
+5. Crear el programa de sincronización
+
+Crear el archivo:
+
+nano /home/vpalomo/carteleria/sincronizar.py
+
+Introducir el código del sincronizador validado en la primera Raspberry.
+
+Importante: se debe utilizar la última versión corregida del programa. En particular, la variable utilizada para almacenar los carteles es carteles_locales.
+
+5.1. Configuración específica de cada Raspberry
+
+En el comienzo del archivo se encuentra la dirección de la API:
+
+API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-01/carteles"
+
+Esta línea debe adaptarse en cada Raspberry.
+
+Ejemplos:
+
+Raspberry 1:
+
+API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-01/carteles"
+
+Raspberry 2:
+
+API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-02/carteles"
+
+Raspberry 3:
+
+API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-03/carteles"
+
+Raspberry 4:
+
+API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-04/carteles"
+
+Raspberry 5:
+
+API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-05/carteles"
+
+El resto de la configuración puede mantenerse igual en todas las instalaciones.
+
+Guardar con Ctrl + O, pulsar Intro y salir con Ctrl + X.
+
+6. Dar permisos al programa
+
+Ejecutar:
+
+chmod +x /home/vpalomo/carteleria/sincronizar.py
+
+7. Primera prueba manual
+
+Antes de instalar el servicio, comprobar que el programa funciona:
+
+python3 /home/vpalomo/carteleria/sincronizar.py
+
+El programa permanece ejecutándose y repite la sincronización cada 60 segundos.
+
+Abrir una segunda conexión SSH y comprobar las imágenes:
+
+ls -lh /home/vpalomo/carteleria/imagenes/
+
+Comprobar el fichero JSON:
+
+cat /home/vpalomo/carteleria/carteles.json
+
+Comprobar que contiene el código de pantalla correcto y el número de carteles esperado:
+
+python3 -c "import json; d=json.load(open('/home/vpalomo/carteleria/carteles.json')); print('Pantalla:',d['pantalla']['codigo']); print('Total carteles:',len(d['carteles'])); print('Carteles:',[c['nombre'] for c in d['carteles']])"
+
+Cuando se haya comprobado que funciona, detener la ejecución manual con Ctrl + C.
+
+8. Crear el servicio automático de Debian
+
+El objetivo es que el sincronizador se ejecute automáticamente al encender la Raspberry, sin necesidad de iniciar sesión ni abrir una terminal.
+
+Crear el servicio:
+
+sudo nano /etc/systemd/system/carteleria-sync.service
+
+Introducir:
+
+[Unit]
+Description=Sincronizacion de carteleria municipal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vpalomo
+WorkingDirectory=/home/vpalomo/carteleria
+ExecStart=/usr/bin/python3 /home/vpalomo/carteleria/sincronizar.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+Guardar con Ctrl + O, Intro y salir con Ctrl + X.
+
+Nota: si se utiliza un usuario distinto de vpalomo, hay que modificar también las líneas User y WorkingDirectory y la ruta de ExecStart.
+
+9. Activar el servicio
+
+Ejecutar los siguientes comandos:
+
+sudo systemctl daemon-reload
+
+sudo systemctl enable carteleria-sync.service
+
+sudo systemctl start carteleria-sync.service
+
+10. Comprobar el funcionamiento
+
+Ejecutar:
+
+systemctl status carteleria-sync.service
+
+El resultado esperado debe incluir:
+
+Loaded: loaded
+Active: active (running)
+
+También debe aparecer el proceso Python ejecutando sincronizar.py.
+
+Para consultar los registros del servicio:
+
+journalctl -u carteleria-sync.service -f
+
+Para consultar el registro propio del sincronizador:
+
+tail -40 /home/vpalomo/carteleria/logs/sincronizacion.log
+
+11. Funcionamiento del servicio
+
+Una vez instalado, el servicio realiza automáticamente las siguientes operaciones:
+
+Consulta la API correspondiente al código de pantalla.
+
+Comprueba la lista de carteles activos y asignados.
+
+Comprueba si cada imagen ya existe y si su hash SHA-256 coincide.
+
+Descarga las imágenes nuevas o modificadas.
+
+Comprueba la integridad de las descargas.
+
+Actualiza carteles.json.
+
+Elimina las imágenes que ya no corresponden a esa pantalla.
+
+Espera 60 segundos y vuelve a iniciar el proceso.
+
+Si falla la conexión o se produce un error, conserva la última programación local válida y vuelve a intentarlo en la siguiente ejecución.
+
+12. Comandos de mantenimiento
+
+Operación
+
+Comando
+
+Consultar estado
+
+systemctl status carteleria-sync
+
+Iniciar servicio
+
+sudo systemctl start carteleria-sync
+
+Detener servicio
+
+sudo systemctl stop carteleria-sync
+
+Reiniciar servicio
+
+sudo systemctl restart carteleria-sync
+
+Ver registros
+
+journalctl -u carteleria-sync -f
+
+Ver errores recientes
+
+journalctl -u carteleria-sync -n 50
+
+Desactivar arranque automático
+
+sudo systemctl disable carteleria-sync
+
+13. Incidencias habituales
+
+La API no responde
+
+Comprobar:
+
+Que la Raspberry tiene conexión de red.
+
+Que el servidor 192.168.1.33 está disponible.
+
+Que el puerto 3100 está accesible.
+
+Que el código de pantalla está correctamente escrito.
+
+Que la pantalla está activa en la administración.
+
+El servicio no arranca
+
+Consultar:
+
+journalctl -u carteleria-sync -n 50
+
+Comprobar que existen el archivo Python y las carpetas necesarias.
+
+No aparecen las imágenes
+
+Comprobar:
+
+ls -lh /home/vpalomo/carteleria/imagenes/
+
+Y consultar:
+
+tail -40 /home/vpalomo/carteleria/logs/sincronizacion.log
+
+La programación no se actualiza
+
+Comprobar que el servicio está activo:
+
+systemctl status carteleria-sync
+
+Y que el JSON existe:
+
+ls -l /home/vpalomo/carteleria/carteles.json
+
+14. Lista de comprobación por Raspberry
+
+Antes de dar por terminada cada instalación, verificar:
+
+Raspberry conectada a la red municipal.
+
+Python instalado.
+
+Pantalla registrada en la aplicación.
+
+Código único configurado en sincronizar.py.
+
+Carpetas creadas.
+
+Primera sincronización completada.
+
+Imágenes descargadas.
+
+carteles.json generado.
+
+Servicio systemd creado.
+
+Servicio habilitado para el arranque.
+
+Servicio en estado active (running).
+
+Reinicio de la Raspberry comprobado.
+
+Fin del manual.
+
+Este procedimiento corresponde al servicio de sincronización. La configuración del reproductor visual de carteles y del inicio automático de Chromium se documentará por separado cuando quede terminada y validada.
