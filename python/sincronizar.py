@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 import os
@@ -7,29 +6,79 @@ import time
 import hashlib
 import logging
 import urllib.request
-import urllib.error
 from pathlib import Path
+from urllib.parse import urljoin
 
 # --------------------------------------------------
-# CONFIGURACION
+# RUTAS
 # --------------------------------------------------
-
-API_URL = "http://192.168.1.33:3100/api/reproductor/AYTO-01/carteles"
 
 BASE_DIR = Path("/home/vpalomo/carteleria")
+CONFIG_FILE = BASE_DIR / "configuracion.json"
 IMAGENES_DIR = BASE_DIR / "imagenes"
 JSON_FILE = BASE_DIR / "carteles.json"
 JS_FILE = BASE_DIR / "carteles.js"
+LOG_DIR = BASE_DIR / "logs"
+LOG_FILE = LOG_DIR / "sincronizacion.log"
 
-INTERVALO = 60  # Segundos entre sincronizaciones
-TIMEOUT = 30
+# --------------------------------------------------
+# CARGAR CONFIGURACION
+# --------------------------------------------------
+
+def cargar_configuracion():
+    if not CONFIG_FILE.exists():
+        raise FileNotFoundError(
+            f"No se encuentra el archivo de configuración: {CONFIG_FILE}"
+        )
+
+    with open(CONFIG_FILE, "r", encoding="utf-8") as archivo:
+        config = json.load(archivo)
+
+    codigo = str(config.get("codigo_pantalla", "")).strip()
+    servidor = str(config.get("servidor", "")).strip().rstrip("/")
+    intervalo = int(config.get("intervalo_sincronizacion", 60))
+    timeout = int(config.get("timeout", 30))
+
+    if not codigo:
+        raise ValueError("Falta codigo_pantalla en configuracion.json.")
+
+    if not servidor.startswith(("http://", "https://")):
+        raise ValueError("El servidor debe comenzar por http:// o https://.")
+
+    if intervalo < 10:
+        raise ValueError("El intervalo de sincronización debe ser de al menos 10 segundos.")
+
+    if timeout < 1:
+        raise ValueError("El timeout debe ser mayor que cero.")
+
+    return {
+        "codigo_pantalla": codigo,
+        "servidor": servidor,
+        "intervalo": intervalo,
+        "timeout": timeout
+    }
+
+
+CONFIG = cargar_configuracion()
+CODIGO_PANTALLA = CONFIG["codigo_pantalla"]
+SERVIDOR = CONFIG["servidor"]
+INTERVALO = CONFIG["intervalo"]
+TIMEOUT = CONFIG["timeout"]
+
+API_URL = (
+    f"{SERVIDOR}/api/reproductor/"
+    f"{CODIGO_PANTALLA}/carteles"
+)
 
 # --------------------------------------------------
 # LOG
 # --------------------------------------------------
 
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+IMAGENES_DIR.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
-    filename=BASE_DIR / "logs" / "sincronizacion.log",
+    filename=LOG_FILE,
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -67,8 +116,7 @@ def descargar_imagen(cartel):
         if calcular_hash(destino) == hash_esperado:
             return
 
-    url = "http://192.168.1.33:3100" + cartel["url_imagen"]
-
+    url = urljoin(SERVIDOR + "/", cartel["url_imagen"].lstrip("/"))
     temporal = destino.with_suffix(destino.suffix + ".tmp")
 
     try:
@@ -120,18 +168,20 @@ def sincronizar():
         cartel_local["archivo_local"] = f"imagenes/{nombre}"
         carteles_locales.append(cartel_local)
 
+    datos_locales = {
+        "pantalla": datos["pantalla"],
+        "sincronizado_en": datos["sincronizado_en"],
+        "total_carteles": len(carteles_locales),
+        "carteles": carteles_locales
+    }
+
     # Guardar la programación solo cuando todas las imágenes
     # se hayan descargado y comprobado correctamente.
     temporal_json = JSON_FILE.with_suffix(".json.tmp")
 
     with open(temporal_json, "w", encoding="utf-8") as archivo:
         json.dump(
-            {
-                "pantalla": datos["pantalla"],
-                "sincronizado_en": datos["sincronizado_en"],
-                "total_carteles": len(carteles_locales),
-                "carteles": carteles_locales
-            },
+            datos_locales,
             archivo,
             ensure_ascii=False,
             indent=2
@@ -139,18 +189,13 @@ def sincronizar():
 
     os.replace(temporal_json, JSON_FILE)
 
-        # Generar el archivo JavaScript para el reproductor local.
+    # Generar el archivo JavaScript para el reproductor local.
     temporal_js = JS_FILE.with_suffix(".js.tmp")
 
     with open(temporal_js, "w", encoding="utf-8") as archivo:
         archivo.write("window.CARTELERIA_DATOS = ")
         json.dump(
-            {
-                "pantalla": datos["pantalla"],
-                "sincronizado_en": datos["sincronizado_en"],
-                "total_carteles": len(carteles_locales),
-                "carteles": carteles_locales
-            },
+            datos_locales,
             archivo,
             ensure_ascii=False
         )
@@ -159,7 +204,7 @@ def sincronizar():
     os.replace(temporal_js, JS_FILE)
 
     logging.info("Archivo carteles.js actualizado.")
-    
+
     # Eliminar imágenes que ya no corresponden a la pantalla.
     for archivo in IMAGENES_DIR.iterdir():
         if archivo.is_file() and archivo.name not in archivos_validos:
@@ -167,7 +212,8 @@ def sincronizar():
             logging.info("Imagen eliminada: %s", archivo.name)
 
     logging.info(
-        "Sincronización correcta. Carteles: %s",
+        "Sincronización correcta. Pantalla: %s. Carteles: %s",
+        CODIGO_PANTALLA,
         len(carteles_locales)
     )
 
@@ -177,7 +223,13 @@ def sincronizar():
 # --------------------------------------------------
 
 def main():
-    logging.info("Servicio de sincronización iniciado.")
+    logging.info(
+        "Servicio de sincronización iniciado. Pantalla: %s. Servidor: %s. "
+        "Intervalo: %s segundos.",
+        CODIGO_PANTALLA,
+        SERVIDOR,
+        INTERVALO
+    )
 
     while True:
         try:
