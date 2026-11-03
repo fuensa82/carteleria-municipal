@@ -14,6 +14,20 @@ const MEDIA_DIR = path.join(__dirname, 'media');
 const IMAGE_DIR = path.join(MEDIA_DIR, 'imagenes');
 fs.mkdirSync(IMAGE_DIR, { recursive: true });
 
+// IP observada en la última sincronización de cada pantalla.
+// Se mantiene únicamente en memoria: no se almacena en MariaDB.
+const ipsPantallas = new Map();
+const TIEMPO_CONEXION_MS = 180 * 1000;
+
+function obtenerIpCliente(req) {
+    let ip = req.socket?.remoteAddress || '';
+
+    // Node puede representar las IPv4 como direcciones IPv6 mapeadas.
+    if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+
+    return ip || null;
+}
+
 const TIPOS_PERMITIDOS = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
@@ -102,6 +116,12 @@ app.get('/api/reproductor/:codigo/carteles', async (req, res, next) => {
         }
 
         const pantalla = pantallas[0];
+
+        // Registrar la IP de origen de esta sincronización (sin confiar en cabeceras HTTP).
+        ipsPantallas.set(Number(pantalla.id), {
+            ip: obtenerIpCliente(req),
+            ultimaConexion: Date.now()
+        });
 
         await db.execute(`
             UPDATE pantallas
@@ -227,7 +247,17 @@ app.get('/api/pantallas', async (req, res, next) => {
             ORDER BY p.nombre, p.id
         `);
 
-        res.json(pantallas);
+        const ahora = Date.now();
+        const resultado = pantallas.map(pantalla => {
+            const conexion = ipsPantallas.get(Number(pantalla.id));
+            const ipActual = conexion && (ahora - conexion.ultimaConexion) <= TIEMPO_CONEXION_MS
+                ? conexion.ip
+                : null;
+
+            return { ...pantalla, ip_actual: ipActual };
+        });
+
+        res.json(resultado);
     } catch (error) {
         next(error);
     }

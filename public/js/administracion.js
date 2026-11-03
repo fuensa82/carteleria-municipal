@@ -169,6 +169,7 @@ function renderizarPantallas() {
                     Código: ${escapar(p.codigo)}${p.ubicacion ? ` · ${escapar(p.ubicacion)}` : ''}
                 </div>
                 <div class="detalle-pantalla">
+                    <span><strong>IP actual:</strong> ${estado.texto === 'Conectada' ? (p.ip_actual ? escapar(p.ip_actual) : 'No disponible') : 'Sin conexión'}</span>
                     <span><strong>Última sincronización:</strong> ${escapar(formatearFechaHora(p.ultima_sincronizacion))}</span>
                     <span><strong>Carteles asignados:</strong> ${Number(p.total_carteles) || 0}</span>
                 </div>

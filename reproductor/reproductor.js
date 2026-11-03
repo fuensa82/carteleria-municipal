@@ -98,6 +98,19 @@ function mostrarSiguiente() {
         mensaje.classList.remove('oculto');
         return;
     }
+    // Si solo hay un cartel, mantenerlo fijo sin hacer transiciones.
+    if (carteles.length === 1) {
+        const unico = carteles[0];
+
+        if (cartelActualId !== obtenerClave(unico)) {
+            prepararCartel(elementoActual, unico);
+            cartelActualId = obtenerClave(unico);
+            elementoActual.classList.add('activo');
+        }
+
+        programarSiguiente();
+        return;
+    }
 
     transicionEnCurso = true;
 
