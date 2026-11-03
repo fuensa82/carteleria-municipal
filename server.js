@@ -5,7 +5,9 @@ const fsp = require('fs/promises');
 const crypto = require('crypto');
 const multer = require('multer');
 const helmet = require('helmet');
+const cron = require('node-cron');
 const db = require('./db');
+const { importarNoticiasWeb } = require('./importador-web');
 
 const app = express();
 const PORT = process.env.PORT || 3100;
@@ -178,13 +180,26 @@ app.get('/api/reproductor/:codigo/carteles', async (req, res, next) => {
     }
 });
 
+// Importación manual de noticias destacadas y noticias de la portada municipal.
+app.post('/api/importacion-web/ejecutar', async (req, res, next) => {
+    try {
+        const resultado = await importarNoticiasWeb(db, IMAGE_DIR);
+        res.json({
+            mensaje: `Importación terminada: ${resultado.importadas} nueva(s), ${resultado.duplicadas} ya existente(s).`,
+            ...resultado
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // Lista de carteles y sus pantallas asignadas.
 app.get('/api/carteles', async (req, res, next) => {
     try {
         const [carteles] = await db.execute(`
             SELECT id, nombre, archivo, tipo_mime, hash_sha256, activo,
                    duracion_segundos, destino, titular, posicion_titular,
-                   fecha_alta, fecha_modificacion
+                   origen, url_origen, fecha_alta, fecha_modificacion
             FROM carteles
             ORDER BY fecha_alta DESC, id DESC
         `);
@@ -476,10 +491,16 @@ app.patch('/api/carteles/:id/estado', async (req, res, next) => {
     }
 
     try {
-        const [resultado] = await db.execute(
-            'UPDATE carteles SET activo = ? WHERE id = ?',
-            [activo ? 1 : 0, id]
-        );
+        const [resultado] = await db.execute(`
+            UPDATE carteles
+            SET fecha_activacion = CASE
+                    WHEN ? = 1 AND activo = 0 THEN NOW()
+                    WHEN ? = 0 THEN NULL
+                    ELSE fecha_activacion
+                END,
+                activo = ?
+            WHERE id = ?
+        `, [activo ? 1 : 0, activo ? 1 : 0, activo ? 1 : 0, id]);
 
         if (!resultado.affectedRows) {
             return res.status(404).json({ error: 'No se ha encontrado el cartel.' });
@@ -520,6 +541,41 @@ app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     res.status(500).json({ error: 'Se ha producido un error interno en el servidor.' });
 });
+
+// Tareas automáticas de cartelería.
+let importacionEnCurso = false;
+
+cron.schedule('*/30 * * * *', async () => {
+    if (importacionEnCurso) return;
+    importacionEnCurso = true;
+    try {
+        const resultado = await importarNoticiasWeb(db, IMAGE_DIR);
+        console.log(`[Cartelería] Importación automática: ${resultado.importadas} nuevas, ${resultado.duplicadas} duplicadas, ${resultado.errores.length} errores.`);
+        if (resultado.errores.length) console.error('[Cartelería] Errores de importación:', resultado.errores);
+    } catch (error) {
+        console.error('[Cartelería] Error en la importación automática:', error);
+    } finally {
+        importacionEnCurso = false;
+    }
+}, { timezone: 'Europe/Madrid' });
+
+cron.schedule('0 3 * * *', async () => {
+    try {
+        const [resultado] = await db.execute(`
+            UPDATE carteles
+            SET activo = 0
+            WHERE origen = 'web'
+              AND activo = 1
+              AND fecha_activacion IS NOT NULL
+              AND fecha_activacion < (NOW() - INTERVAL 30 DAY)
+        `);
+        if (resultado.affectedRows) {
+            console.log(`[Cartelería] Desactivados automáticamente ${resultado.affectedRows} cartel(es) web con más de 30 días desde su última activación.`);
+        }
+    } catch (error) {
+        console.error('[Cartelería] Error al desactivar carteles web antiguos:', error);
+    }
+}, { timezone: 'Europe/Madrid' });
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Cartelería Municipal disponible en http://localhost:${PORT}`);

@@ -77,7 +77,7 @@ function renderizarLista() {
         const destinoTexto = c.destino === 'todas' ? 'Todas las pantallas' : (c.pantallas?.length ? c.pantallas.map(p => p.nombre).join(', ') : 'Sin pantallas asignadas');
         return `<article class="fila-cartel" data-id="${Number(c.id)}">
             <div class="miniatura"><img src="/media/imagenes/${encodeURIComponent(c.archivo)}" alt="Miniatura de ${escapar(c.nombre)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sin-miniatura" style="display:none">Imagen no disponible</span></div>
-            <div class="info-cartel"><div class="nombre-cartel">${escapar(c.nombre)}</div><div class="archivo-cartel">${escapar(c.archivo)}</div><div class="fecha-cartel">Alta: ${escapar(formatearFecha(c.fecha_alta))}</div><div class="detalle-configuracion"><strong>Duración:</strong> ${Number(c.duracion_segundos) || 15} s<br><strong>Destino:</strong> ${escapar(destinoTexto)}</div></div>
+            <div class="info-cartel"><div class="nombre-cartel">${escapar(c.nombre)}</div><div class="archivo-cartel">${escapar(c.archivo)}</div><div class="fecha-cartel">Origen: ${c.origen === 'web' ? 'Web municipal' : 'Manual'}</div><div class="fecha-cartel">Alta: ${escapar(formatearFecha(c.fecha_alta))}</div><div class="detalle-configuracion"><strong>Duración:</strong> ${Number(c.duracion_segundos) || 15} s<br><strong>Destino:</strong> ${escapar(destinoTexto)}</div></div>
             <div class="estado-columna"><span class="estado ${activo ? 'activo' : 'inactivo'}">${activo ? 'Activo' : 'Inactivo'}</span></div>
             <div class="acciones-cartel"><button type="button" class="boton-pequeno" data-accion="configurar" data-id="${Number(c.id)}">Configurar</button><button type="button" class="boton-pequeno" data-accion="estado" data-id="${Number(c.id)}" data-activo="${activo ? '0' : '1'}">${activo ? 'Desactivar' : 'Activar'}</button><button type="button" class="boton-pequeno eliminar" data-accion="eliminar" data-id="${Number(c.id)}">Eliminar</button></div>
             <form class="configuracion-cartel oculto" data-config-id="${Number(c.id)}">
@@ -413,3 +413,33 @@ if (botonActualizarPantallas) {
 setInterval(cargarPantallas, 30000);
 
 Promise.all([cargarPantallas(), cargarCarteles()]);
+
+
+// Importar manualmente las noticias visibles en la portada de la web municipal.
+const botonImportarWeb = document.getElementById('importarNoticiasWeb');
+if (botonImportarWeb) {
+    botonImportarWeb.addEventListener('click', async () => {
+        if (!window.confirm('Se comprobarán los destacados y las noticias de la portada municipal. Solo se añadirán artículos que todavía no estén importados. ¿Continuar?')) return;
+
+        botonImportarWeb.disabled = true;
+        const textoOriginal = botonImportarWeb.textContent;
+        botonImportarWeb.textContent = 'Importando...';
+
+        try {
+            const r = await peticion('/api/importacion-web/ejecutar', { method: 'POST' });
+            await cargarCarteles();
+
+            let detalle = r.mensaje;
+            if (r.errores?.length) {
+                detalle += ` ${r.errores.length} noticia(s) no se pudieron importar.`;
+                console.warn('Errores de importación web:', r.errores);
+            }
+            mostrarMensaje(detalle, r.errores?.length ? 'error' : 'exito');
+        } catch (error) {
+            mostrarMensaje(error.message, 'error');
+        } finally {
+            botonImportarWeb.disabled = false;
+            botonImportarWeb.textContent = textoOriginal;
+        }
+    });
+}
