@@ -3,6 +3,7 @@ const DURACION_TRANSICION = 700;
 const INTERVALO_ACTUALIZACION = 60000;
 
 let carteles = [];
+let cartelesProgramados = [];
 let indiceActual = 0;
 let cartelActualId = null;
 
@@ -23,6 +24,42 @@ let actualizacionPendiente = null;
 
 function obtenerClave(cartel) {
     return String(cartel.id ?? cartel.archivo);
+}
+
+function fechaLocalISO() {
+    const ahora = new Date();
+    return `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+}
+
+function filtrarCartelesPorFecha(lista) {
+    const hoy = fechaLocalISO();
+    return lista.filter(cartel => {
+        if (Number(cartel.activo ?? 1) !== 1) return false;
+        const inicio = cartel.fecha_inicio ? String(cartel.fecha_inicio).slice(0, 10) : null;
+        const fin = cartel.fecha_fin ? String(cartel.fecha_fin).slice(0, 10) : null;
+        return (!inicio || inicio <= hoy) && (!fin || fin >= hoy);
+    });
+}
+
+function actualizarCartelesPorFecha() {
+    const anterior = carteles;
+    const filtrados = filtrarCartelesPorFecha(cartelesProgramados);
+    const cambio = filtrados.map(obtenerClave).join('|') !== anterior.map(obtenerClave).join('|');
+    carteles = filtrados;
+
+    if (!carteles.length) {
+        clearTimeout(temporizadorCartel);
+        elementoActual.classList.remove('activo', 'saliendo');
+        elementoSiguiente.classList.remove('activo', 'entrando');
+        cartelActualId = null;
+        mensaje.textContent = 'No hay carteles disponibles en este momento.';
+        mensaje.classList.remove('oculto');
+        return;
+    }
+
+    if (cambio && !carteles.some(c => obtenerClave(c) === cartelActualId)) {
+        if (!transicionEnCurso) mostrarPrimerCartel();
+    }
 }
 
 
@@ -177,7 +214,8 @@ function aplicarProgramacion(datos) {
         return;
     }
 
-    carteles = datos.carteles;
+    cartelesProgramados = datos.carteles;
+    carteles = filtrarCartelesPorFecha(cartelesProgramados);
 
     console.log(
         'Programación actualizada:',
@@ -186,8 +224,9 @@ function aplicarProgramacion(datos) {
         carteles.length
     );
 
-    // Si no hay carteles, se dejará terminar el actual.
+    // Si todos están pendientes o caducados, no se deja una imagen antigua en pantalla.
     if (!carteles.length) {
+        actualizarCartelesPorFecha();
         return;
     }
 
@@ -202,9 +241,9 @@ function aplicarProgramacion(datos) {
         // Actualizar también el titular o imagen si han cambiado.
         prepararCartel(elementoActual, carteles[nuevoIndice]);
     } else {
-        // El cartel actual ha sido eliminado.
-        // Se mantendrá visible hasta la siguiente transición.
+        // El cartel actual ya no está vigente o ha sido retirado: sustituirlo ahora.
         indiceActual = -1;
+        if (!transicionEnCurso) mostrarPrimerCartel();
     }
 }
 
@@ -250,7 +289,8 @@ function iniciarReproductor() {
         return;
     }
 
-    carteles = datos.carteles;
+    cartelesProgramados = datos.carteles;
+    carteles = filtrarCartelesPorFecha(cartelesProgramados);
 
     console.log(
         'Cartelería iniciada:',
@@ -262,10 +302,10 @@ function iniciarReproductor() {
     mostrarPrimerCartel();
 
     // Comprobar si hay cambios cada 60 segundos.
-    temporizadorActualizacion = setInterval(
-        recargarProgramacion,
-        INTERVALO_ACTUALIZACION
-    );
+    temporizadorActualizacion = setInterval(() => {
+        actualizarCartelesPorFecha();
+        recargarProgramacion();
+    }, INTERVALO_ACTUALIZACION);
 }
 
 iniciarReproductor();

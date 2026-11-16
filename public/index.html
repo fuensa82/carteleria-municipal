@@ -34,6 +34,10 @@
             <div class="campo"><label for="nombre">Nombre del cartel</label><input id="nombre" name="nombre" type="text" maxlength="150" required placeholder="Ej. Actividades culturales"></div>
             <div class="campo"><label for="imagen">Archivo de imagen</label><input id="imagen" name="imagen" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></div>
             <div class="campo campo-corto"><label for="duracionSegundos">Duración en pantalla (segundos)</label><input id="duracionSegundos" name="duracion_segundos" type="number" min="3" max="3600" step="1" value="15" required><small>Valor predeterminado: 15 segundos. Mínimo 3 y máximo 3600.</small></div>
+            <fieldset class="campo campo-fechas"><legend>Programación del cartel</legend>
+                <div class="campo-fecha"><label for="fechaInicioNueva">Fecha de inicio</label><input id="fechaInicioNueva" name="fecha_inicio" type="date" required><small>El cartel empezará a mostrarse a partir de este día.</small></div>
+                <div class="campo-fecha"><label for="fechaFinNueva">Fecha de finalización</label><input id="fechaFinNueva" name="fecha_fin" type="date" required><small>Se mostrará durante todo el día indicado.</small></div>
+            </fieldset>
             <div class="campo campo-titular">
                 <label for="titularNuevo">Titular (opcional)</label>
                 <textarea id="titularNuevo" name="titular" maxlength="150" rows="2" placeholder="Texto que aparecerá sobre la imagen"></textarea>
@@ -65,7 +69,7 @@
 
     <section class="panel-lista">
         <div class="barra-lista"><div><h3>Biblioteca de carteles</h3><span id="contador" class="texto-secundario">Cargando carteles...</span></div>
-            <div class="filtros"><input id="busqueda" type="search" placeholder="Buscar cartel..." aria-label="Buscar cartel"><select id="filtroEstado" aria-label="Filtrar por estado"><option value="todos">Todos los estados</option><option value="activos">Activos</option><option value="inactivos">Inactivos</option></select></div>
+            <div class="filtros"><input id="busqueda" type="search" placeholder="Buscar cartel..." aria-label="Buscar cartel"><select id="filtroEstado" aria-label="Filtrar por estado"><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="espera">En espera</option><option value="caducado">Caducados</option><option value="desactivado">Desactivados</option></select></div>
         </div>
         <div class="cabecera-lista"><span>Cartel</span><span>Información</span><span>Estado</span><span>Acciones</span></div>
         <div id="listaCarteles" class="lista-carteles"><div class="estado-vacio">Cargando carteles...</div></div>

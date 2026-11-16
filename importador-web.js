@@ -163,8 +163,8 @@ async function importarNoticiasWeb(db, directorioImagenes) {
                 INSERT INTO carteles
                     (nombre, archivo, tipo_mime, hash_sha256, activo,
                      duracion_segundos, destino, titular, posicion_titular,
-                     origen, url_origen, hash_url_origen, fecha_activacion)
-                VALUES (?, ?, ?, ?, 1, ?, 'todas', ?, 'inferior', 'web', ?, ?, NOW())
+                     origen, url_origen, hash_url_origen, fecha_activacion, fecha_inicio, fecha_fin)
+                VALUES (?, ?, ?, ?, 1, ?, 'todas', ?, 'inferior', 'web', ?, ?, NOW(), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY))
             `, [
                 nombre,
                 imagenLocal.archivo,

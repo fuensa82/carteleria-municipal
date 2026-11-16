@@ -7,6 +7,8 @@ const mensaje = document.getElementById('mensaje');
 const botonGuardar = document.getElementById('guardarCartel');
 const campoNombre = document.getElementById('nombre');
 const campoImagen = document.getElementById('imagen');
+const fechaInicioNueva = document.getElementById('fechaInicioNueva');
+const fechaFinNueva = document.getElementById('fechaFinNueva');
 const busqueda = document.getElementById('busqueda');
 const filtroEstado = document.getElementById('filtroEstado');
 const vistaPrevia = document.getElementById('vistaPreviaNueva');
@@ -44,6 +46,32 @@ function formatearFecha(fecha) {
     const d = new Date(String(fecha).replace(' ', 'T'));
     return Number.isNaN(d.getTime()) ? String(fecha) : d.toLocaleDateString('es-ES');
 }
+function fechaLocalISO(fecha = new Date()) {
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+function sumarUnMes(fecha = new Date()) {
+    const resultado = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+    const ultimoDiaDestino = new Date(resultado.getFullYear(), resultado.getMonth() + 2, 0).getDate();
+    resultado.setMonth(resultado.getMonth() + 1);
+    resultado.setDate(Math.min(fecha.getDate(), ultimoDiaDestino));
+    return fechaLocalISO(resultado);
+}
+function obtenerEstadoCartel(cartel) {
+    if (Number(cartel.activo) !== 1) return { valor: 'desactivado', texto: 'Desactivado', clase: 'inactivo' };
+    const hoy = fechaLocalISO();
+    if (cartel.fecha_fin && String(cartel.fecha_fin).slice(0, 10) < hoy) return { valor: 'caducado', texto: 'Caducado', clase: 'caducado' };
+    if (cartel.fecha_inicio && String(cartel.fecha_inicio).slice(0, 10) > hoy) return { valor: 'espera', texto: 'En espera', clase: 'espera' };
+    return { valor: 'activo', texto: 'Activo', clase: 'activo' };
+}
+function formatearFechaCorta(fecha) {
+    if (!fecha) return 'Sin límite';
+    const partes = String(fecha).slice(0, 10).split('-');
+    return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : String(fecha);
+}
+
 function htmlCheckboxesPantallas(seleccionadas = [], prefijo = 'pantalla') {
     const ids = seleccionadas.map(Number);
     const activas = pantallas.filter(p => Number(p.activa) === 1);
@@ -64,7 +92,8 @@ function renderizarLista() {
     const estado = filtroEstado.value;
     const filtrados = carteles.filter(c => {
         const coincideTexto = c.nombre.toLocaleLowerCase('es').includes(texto) || c.archivo.toLocaleLowerCase('es').includes(texto);
-        const coincideEstado = estado === 'todos' || (estado === 'activos' && Number(c.activo) === 1) || (estado === 'inactivos' && Number(c.activo) === 0);
+        const estadoCalculado = obtenerEstadoCartel(c);
+        const coincideEstado = estado === 'todos' || estadoCalculado.valor === estado;
         return coincideTexto && coincideEstado;
     });
     contador.textContent = `${filtrados.length} de ${carteles.length} cartel(es)`;
@@ -74,15 +103,20 @@ function renderizarLista() {
     }
     listaCarteles.innerHTML = filtrados.map(c => {
         const activo = Number(c.activo) === 1;
+        const estadoCalculado = obtenerEstadoCartel(c);
         const destinoTexto = c.destino === 'todas' ? 'Todas las pantallas' : (c.pantallas?.length ? c.pantallas.map(p => p.nombre).join(', ') : 'Sin pantallas asignadas');
         return `<article class="fila-cartel" data-id="${Number(c.id)}">
             <div class="miniatura"><img src="/media/imagenes/${encodeURIComponent(c.archivo)}" alt="Miniatura de ${escapar(c.nombre)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="sin-miniatura" style="display:none">Imagen no disponible</span></div>
-            <div class="info-cartel"><div class="nombre-cartel">${escapar(c.nombre)}</div><div class="archivo-cartel">${escapar(c.archivo)}</div><div class="fecha-cartel">Origen: ${c.origen === 'web' ? 'Web municipal' : 'Manual'}</div><div class="fecha-cartel">Alta: ${escapar(formatearFecha(c.fecha_alta))}</div><div class="detalle-configuracion"><strong>Duración:</strong> ${Number(c.duracion_segundos) || 15} s<br><strong>Destino:</strong> ${escapar(destinoTexto)}</div></div>
-            <div class="estado-columna"><span class="estado ${activo ? 'activo' : 'inactivo'}">${activo ? 'Activo' : 'Inactivo'}</span></div>
+            <div class="info-cartel"><div class="nombre-cartel">${escapar(c.nombre)}</div><div class="archivo-cartel">${escapar(c.archivo)}</div><div class="fecha-cartel">Origen: ${c.origen === 'web' ? 'Web municipal' : 'Manual'}</div><div class="fecha-cartel">Alta: ${escapar(formatearFecha(c.fecha_alta))}</div><div class="fecha-cartel">Publicación: ${escapar(formatearFechaCorta(c.fecha_inicio))} – ${escapar(formatearFechaCorta(c.fecha_fin))}</div><div class="detalle-configuracion"><strong>Duración:</strong> ${Number(c.duracion_segundos) || 15} s<br><strong>Destino:</strong> ${escapar(destinoTexto)}</div></div>
+            <div class="estado-columna"><span class="estado ${estadoCalculado.clase}">${estadoCalculado.texto}</span></div>
             <div class="acciones-cartel"><button type="button" class="boton-pequeno" data-accion="configurar" data-id="${Number(c.id)}">Configurar</button><button type="button" class="boton-pequeno" data-accion="estado" data-id="${Number(c.id)}" data-activo="${activo ? '0' : '1'}">${activo ? 'Desactivar' : 'Activar'}</button><button type="button" class="boton-pequeno eliminar" data-accion="eliminar" data-id="${Number(c.id)}">Eliminar</button></div>
             <form class="configuracion-cartel oculto" data-config-id="${Number(c.id)}">
                 <h4>Configuración de «${escapar(c.nombre)}»</h4>
                 <div class="campo campo-corto"><label>Duración en pantalla (segundos)</label><input name="duracion_segundos" type="number" min="3" max="3600" value="${Number(c.duracion_segundos) || 15}" required></div>
+                <fieldset class="campo campo-fechas"><legend>Programación del cartel</legend>
+                    <div class="campo-fecha"><label>Fecha de inicio</label><input name="fecha_inicio" type="date" value="${escapar(c.fecha_inicio || '')}"><small>Vacía: publicación inmediata.</small></div>
+                    <div class="campo-fecha"><label>Fecha de finalización</label><input name="fecha_fin" type="date" value="${escapar(c.fecha_fin || '')}"><small>Vacía: sin caducidad.</small></div>
+                </fieldset>
                 <div class="campo campo-titular">
                     <label>Titular (opcional)</label>
                     <textarea name="titular" maxlength="150" rows="2" placeholder="Texto que aparecerá sobre la imagen">${escapar(c.titular || '')}</textarea>
@@ -218,6 +252,11 @@ function actualizarVistaPreviaTitularConfiguracion(form) {
 }
 
 function abrirFormulario() {
+    formulario.reset();
+    const hoy = new Date();
+    fechaInicioNueva.value = fechaLocalISO(hoy);
+    fechaFinNueva.value = sumarUnMes(hoy);
+    fechaFinNueva.min = fechaInicioNueva.value;
     modalCartel.classList.remove('oculto');
     modalCartel.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-abierto');
@@ -226,6 +265,7 @@ function abrirFormulario() {
 }
 function cerrarFormulario() {
     formulario.reset();
+    fechaFinNueva.min = '';
     modalCartel.classList.add('oculto');
     modalCartel.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-abierto');
@@ -298,6 +338,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modalCart
 formulario.querySelectorAll('input[name="destino"]').forEach(r => r.addEventListener('change', actualizarOpcionesNuevas));
 titularNuevo.addEventListener('input', actualizarVistaPreviaTitularNueva);
 posicionTitularNueva.addEventListener('change', actualizarVistaPreviaTitularNueva);
+fechaInicioNueva.addEventListener('change', () => { fechaFinNueva.min = fechaInicioNueva.value; if (fechaFinNueva.value && fechaFinNueva.value < fechaInicioNueva.value) fechaFinNueva.value = fechaInicioNueva.value; });
 
 campoImagen.addEventListener('change', () => {
     const archivo = campoImagen.files[0]; vistaPrevia.classList.add('oculto'); imagenNueva.removeAttribute('src'); if (!archivo) return;
@@ -307,6 +348,7 @@ campoImagen.addEventListener('change', () => {
 formulario.addEventListener('submit', async e => {
     e.preventDefault();
     if (!campoImagen.files.length) return mostrarMensaje('Selecciona una imagen.', 'error');
+    if (!fechaInicioNueva.value || !fechaFinNueva.value || fechaFinNueva.value < fechaInicioNueva.value) return mostrarMensaje('Comprueba las fechas: la finalización no puede ser anterior al inicio.', 'error');
     const destino = formulario.querySelector('input[name="destino"]:checked').value;
     const ids = [...formulario.querySelectorAll('input[name="pantallaNueva"]:checked')].map(x => Number(x.value));
     if (destino === 'seleccionadas' && !ids.length) return mostrarMensaje('Selecciona al menos una pantalla.', 'error');
@@ -334,7 +376,13 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
     const form = e.target.closest('form[data-config-id]');
-    if (form && e.target.matches('select[name="posicion_titular"]')) actualizarVistaPreviaTitularConfiguracion(form);
+    if (!form) return;
+    if (e.target.matches('select[name="posicion_titular"]')) actualizarVistaPreviaTitularConfiguracion(form);
+    if (e.target.matches('input[name="fecha_inicio"]')) {
+        const fin = form.elements.fecha_fin;
+        fin.min = e.target.value;
+        if (fin.value && e.target.value && fin.value < e.target.value) fin.value = e.target.value;
+    }
 });
 
 document.addEventListener('submit', async e => {
@@ -343,8 +391,9 @@ document.addEventListener('submit', async e => {
     const destino = form.querySelector('input[name="destino"]:checked')?.value || 'todas';
     const ids = [...form.querySelectorAll(`input[name="pantalla-${id}"]:checked`)].map(x => Number(x.value));
     if (destino === 'seleccionadas' && !ids.length) return mostrarMensaje('Selecciona al menos una pantalla.', 'error');
+    if (form.elements.fecha_inicio.value && form.elements.fecha_fin.value && form.elements.fecha_fin.value < form.elements.fecha_inicio.value) return mostrarMensaje('La fecha de finalización no puede ser anterior a la fecha de inicio.', 'error');
     const boton = form.querySelector('button[type="submit"]'); boton.disabled = true;
-    try { const r = await peticion(`/api/carteles/${id}/configuracion`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duracion_segundos: Number(form.elements.duracion_segundos.value), titular: form.elements.titular.value.trim(), posicion_titular: form.elements.posicion_titular.value, destino, pantallas: ids }) }); cerrarModalConfiguracion(); await cargarCarteles(); mostrarMensaje(r.mensaje); }
+    try { const r = await peticion(`/api/carteles/${id}/configuracion`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duracion_segundos: Number(form.elements.duracion_segundos.value), titular: form.elements.titular.value.trim(), posicion_titular: form.elements.posicion_titular.value, fecha_inicio: form.elements.fecha_inicio.value, fecha_fin: form.elements.fecha_fin.value, destino, pantallas: ids }) }); cerrarModalConfiguracion(); await cargarCarteles(); mostrarMensaje(r.mensaje); }
     catch (err) { mostrarMensaje(err.message, 'error'); } finally { boton.disabled = false; }
 });
 
@@ -411,6 +460,7 @@ if (botonActualizarPantallas) {
 
 // Actualizar el estado de conexión cada 30 segundos.
 setInterval(cargarPantallas, 30000);
+setInterval(renderizarLista, 60000); // Recalcular los estados según la fecha local.
 
 Promise.all([cargarPantallas(), cargarCarteles()]);
 

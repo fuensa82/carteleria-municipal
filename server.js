@@ -68,6 +68,13 @@ const subirImagen = multer({
     }
 });
 
+function fechaISOValida(valor) {
+    if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+    const [y, m, d] = valor.split('-').map(Number);
+    const fecha = new Date(Date.UTC(y, m - 1, d));
+    return fecha.getUTCFullYear() === y && fecha.getUTCMonth() === m - 1 && fecha.getUTCDate() === d;
+}
+
 function leerIdsPantallas(valor) {
     let datos = valor;
     if (typeof datos === 'string') {
@@ -140,9 +147,12 @@ app.get('/api/reproductor/:codigo/carteles', async (req, res, next) => {
                 c.hash_sha256,
                 c.duracion_segundos,
                 c.titular,
-                c.posicion_titular
+                c.posicion_titular,
+                DATE_FORMAT(c.fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
+                DATE_FORMAT(c.fecha_fin, '%Y-%m-%d') AS fecha_fin
             FROM carteles c
             WHERE c.activo = 1
+              AND (c.fecha_fin IS NULL OR c.fecha_fin >= CURDATE())
               AND (
                     c.destino = 'todas'
                     OR (
@@ -199,7 +209,9 @@ app.get('/api/carteles', async (req, res, next) => {
         const [carteles] = await db.execute(`
             SELECT id, nombre, archivo, tipo_mime, hash_sha256, activo,
                    duracion_segundos, destino, titular, posicion_titular,
-                   origen, url_origen, fecha_alta, fecha_modificacion
+                   origen, url_origen, fecha_alta, fecha_modificacion,
+                   DATE_FORMAT(fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
+                   DATE_FORMAT(fecha_fin, '%Y-%m-%d') AS fecha_fin
             FROM carteles
             ORDER BY fecha_alta DESC, id DESC
         `);
@@ -245,6 +257,8 @@ app.get('/api/pantallas', async (req, res, next) => {
                     SELECT COUNT(*)
                     FROM carteles c
                     WHERE c.activo = 1
+                      AND (c.fecha_inicio IS NULL OR c.fecha_inicio <= CURDATE())
+                      AND (c.fecha_fin IS NULL OR c.fecha_fin >= CURDATE())
                       AND (
                           c.destino = 'todas'
                           OR (
@@ -376,7 +390,14 @@ app.post('/api/carteles', (req, res, next) => {
         const destino = String(req.body.destino || 'todas');
         const titular = String(req.body.titular || '').trim();
         const posicionTitular = String(req.body.posicion_titular || 'inferior');
+        const fechaInicio = String(req.body.fecha_inicio || '');
+        const fechaFin = String(req.body.fecha_fin || '');
         const idsPantallas = leerIdsPantallas(req.body.pantallas || '[]');
+
+        if (!fechaISOValida(fechaInicio) || !fechaISOValida(fechaFin) || fechaFin < fechaInicio) {
+            await fsp.unlink(req.file.path).catch(() => {});
+            return res.status(400).json({ error: 'Las fechas no son válidas o la finalización es anterior al inicio.' });
+        }
 
         if (!nombre || nombre.length > 150) {
             await fsp.unlink(req.file.path).catch(() => {});
@@ -410,12 +431,12 @@ app.post('/api/carteles', (req, res, next) => {
 
             const [resultado] = await db.execute(`
                 INSERT INTO carteles
-                    (nombre, archivo, tipo_mime, hash_sha256, activo,
+                    (nombre, archivo, tipo_mime, hash_sha256, activo, fecha_inicio, fecha_fin,
                      duracion_segundos, destino, titular, posicion_titular)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
             `, [
                 nombre, req.file.filename, req.file.mimetype, hash,
-                duracion, destino, titular || null, posicionTitular
+                fechaInicio, fechaFin, duracion, destino, titular || null, posicionTitular
             ]);
 
             if (destino === 'seleccionadas') {
@@ -442,11 +463,14 @@ app.patch('/api/carteles/:id/configuracion', async (req, res, next) => {
     const destino = String(req.body.destino || '');
     const titular = String(req.body.titular || '').trim();
     const posicionTitular = String(req.body.posicion_titular || 'inferior');
+    const fechaInicio = String(req.body.fecha_inicio || '');
+    const fechaFin = String(req.body.fecha_fin || '');
     const idsPantallas = leerIdsPantallas(req.body.pantallas);
 
     if (!Number.isSafeInteger(id) || id < 1 || !Number.isInteger(duracion) ||
         duracion < 3 || duracion > 3600 || titular.length > 150 ||
         !['superior', 'inferior'].includes(posicionTitular) ||
+        (fechaInicio && !fechaISOValida(fechaInicio)) || (fechaFin && !fechaISOValida(fechaFin)) || (fechaInicio && fechaFin && fechaFin < fechaInicio) ||
         !['todas', 'seleccionadas'].includes(destino) || idsPantallas === null ||
         (destino === 'seleccionadas' && idsPantallas.length === 0)) {
         return res.status(400).json({ error: 'Revisa la duración, el titular y la selección de pantallas.' });
@@ -461,8 +485,8 @@ app.patch('/api/carteles/:id/configuracion', async (req, res, next) => {
         }
 
         await db.execute(
-            'UPDATE carteles SET duracion_segundos = ?, destino = ?, titular = ?, posicion_titular = ? WHERE id = ?',
-            [duracion, destino, titular || null, posicionTitular, id]
+            'UPDATE carteles SET duracion_segundos = ?, destino = ?, titular = ?, posicion_titular = ?, fecha_inicio = ?, fecha_fin = ? WHERE id = ?',
+            [duracion, destino, titular || null, posicionTitular, fechaInicio || null, fechaFin || null, id]
         );
 
         await db.execute('DELETE FROM carteles_pantallas WHERE cartel_id = ?', [id]);
@@ -559,23 +583,8 @@ cron.schedule('*/30 * * * *', async () => {
     }
 }, { timezone: 'Europe/Madrid' });
 
-cron.schedule('0 3 * * *', async () => {
-    try {
-        const [resultado] = await db.execute(`
-            UPDATE carteles
-            SET activo = 0
-            WHERE origen = 'web'
-              AND activo = 1
-              AND fecha_activacion IS NOT NULL
-              AND fecha_activacion < (NOW() - INTERVAL 30 DAY)
-        `);
-        if (resultado.affectedRows) {
-            console.log(`[Cartelería] Desactivados automáticamente ${resultado.affectedRows} cartel(es) web con más de 30 días desde su última activación.`);
-        }
-    } catch (error) {
-        console.error('[Cartelería] Error al desactivar carteles web antiguos:', error);
-    }
-}, { timezone: 'Europe/Madrid' });
+// La caducidad ya no desactiva registros: se calcula con fecha_inicio/fecha_fin
+// y se aplica tanto en la API como en el reproductor local.
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Cartelería Municipal disponible en http://localhost:${PORT}`);
