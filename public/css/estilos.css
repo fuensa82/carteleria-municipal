@@ -242,7 +242,7 @@ h1 {
 
 .cabecera-lista, .fila-cartel {
     display: grid;
-    grid-template-columns: 125px minmax(240px, 1fr) 105px 150px 90px 112px;
+    grid-template-columns: 125px minmax(240px, 1fr) 105px 150px 90px 150px;
     align-items: center;
     gap: 18px;
     padding: 13px 22px;
@@ -742,25 +742,48 @@ body.visor-imagen-abierto { overflow: hidden; }
 }
 
 
+/* Acción de optimización: cuatro iconos en línea en escritorio */
+.acciones-cartel {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.boton-icono.optimizar {
+    color: #216b4b;
+}
+.boton-icono:disabled {
+    opacity: .55;
+    cursor: wait;
+}
+@media (max-width: 1050px) {
+    .acciones-cartel {
+        flex-wrap: nowrap;
+        max-width: 100%;
+        overflow: visible;
+    }
+}
 
-/* Datos técnicos de la biblioteca: peso y etiqueta de imagen pesada */
-.dato-tecnico {
+
+/* Etiqueta de aviso para carteles que superan el umbral de peso */
+.dato-tecnico.peso-cartel {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     min-width: 0;
-    font-size: 14px;
-    line-height: 1.35;
+    line-height: 1.3;
 }
 
-.peso-cartel strong {
+.dato-tecnico.peso-cartel > strong {
+    display: block;
     font-weight: 700;
     white-space: nowrap;
 }
 
-.aviso-imagen-pesada {
+.dato-tecnico.peso-cartel .aviso-imagen-pesada {
     display: inline-flex;
     align-items: center;
     width: fit-content;

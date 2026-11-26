@@ -4,6 +4,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const crypto = require('crypto');
 const multer = require('multer');
+const sharp = require('sharp');
 const helmet = require('helmet');
 const cron = require('node-cron');
 const db = require('./db');
@@ -479,6 +480,139 @@ app.post('/api/carteles', (req, res, next) => {
             next(err);
         }
     });
+});
+
+
+// Optimizar una imagen grande sin cambiar su nombre, ruta ni dimensiones visuales.
+// Se usa un archivo temporal y una copia de seguridad para poder restaurar si falla MariaDB.
+app.post('/api/carteles/:id/optimizar', async (req, res, next) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+        return res.status(400).json({ error: 'Identificador de cartel no válido.' });
+    }
+
+    let temporal = null;
+    let respaldo = null;
+    let reemplazoRealizado = false;
+    let rutaOriginal = null;
+
+    try {
+        const [filas] = await db.execute(
+            'SELECT id, archivo, tipo_mime, tamano_bytes FROM carteles WHERE id = ? LIMIT 1',
+            [id]
+        );
+        if (!filas.length) return res.status(404).json({ error: 'No se ha encontrado el cartel.' });
+
+        const cartel = filas[0];
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(cartel.tipo_mime)) {
+            return res.status(400).json({
+                error: 'Este formato no se puede optimizar automáticamente. Los GIF animados se conservan sin cambios.'
+            });
+        }
+
+        const archivoSeguro = path.basename(String(cartel.archivo || ''));
+        if (!archivoSeguro || archivoSeguro !== cartel.archivo) {
+            return res.status(400).json({ error: 'La ruta del archivo no es válida.' });
+        }
+
+        rutaOriginal = path.join(IMAGE_DIR, archivoSeguro);
+        const estadisticas = await fsp.stat(rutaOriginal);
+        const tamanoOriginal = estadisticas.size;
+        const umbralBytes = 2 * 1024 * 1024;
+        const formatoPorMime = {
+            'image/jpeg': 'jpeg',
+            'image/png': 'png',
+            'image/webp': 'webp'
+        };
+        const formato = formatoPorMime[cartel.tipo_mime];
+        const metadataOriginal = await sharp(rutaOriginal, { limitInputPixels: 100000000 }).metadata();
+        const orientacion = Number(metadataOriginal.orientation || 1);
+        const intercambiaEjes = [5, 6, 7, 8].includes(orientacion);
+        const anchoOriginal = Number(intercambiaEjes ? metadataOriginal.height : metadataOriginal.width) || 0;
+        const altoOriginal = Number(intercambiaEjes ? metadataOriginal.width : metadataOriginal.height) || 0;
+        const necesitaRedimension = anchoOriginal > 2048 || altoOriginal > 1366;
+
+        if (tamanoOriginal <= umbralBytes && !necesitaRedimension) {
+            return res.status(400).json({ error: 'La imagen ya cumple los límites de 2 MB y 2048 × 1366 px.' });
+        }
+
+        if (metadataOriginal.format !== formato) {
+            return res.status(400).json({ error: 'El contenido de la imagen no coincide con su formato registrado.' });
+        }
+
+        let procesador = sharp(rutaOriginal, { limitInputPixels: 100000000 })
+            .rotate()
+            .resize({
+                width: 2048,
+                height: 1366,
+                fit: 'inside',
+                withoutEnlargement: true
+            });
+        if (formato === 'jpeg') {
+            procesador = procesador.jpeg({ quality: 84, mozjpeg: true, progressive: true });
+        } else if (formato === 'webp') {
+            procesador = procesador.webp({ quality: 84, effort: 5, smartSubsample: true });
+        } else {
+            // PNG se mantiene en modo sin pérdida para no degradar carteles con texto o transparencias.
+            procesador = procesador.png({ compressionLevel: 9, adaptiveFiltering: true, palette: false });
+        }
+
+        const { data: optimizada, info } = await procesador.toBuffer({ resolveWithObject: true });
+        if (!optimizada.length || optimizada.length >= tamanoOriginal) {
+            return res.status(422).json({
+                error: 'No se ha conseguido generar una versión más ligera. Se conserva la imagen original.'
+            });
+        }
+
+        const metaFinal = await sharp(optimizada).metadata();
+        temporal = path.join(IMAGE_DIR, `.${archivoSeguro}.${crypto.randomUUID()}.tmp`);
+        respaldo = path.join(IMAGE_DIR, `.${archivoSeguro}.${crypto.randomUUID()}.bak`);
+        await fsp.writeFile(temporal, optimizada, { flag: 'wx' });
+        await fsp.copyFile(rutaOriginal, respaldo, fs.constants.COPYFILE_EXCL);
+
+        // En el mismo directorio: el rename sustituye el archivo de forma atómica en Linux.
+        await fsp.rename(temporal, rutaOriginal);
+        temporal = null;
+        reemplazoRealizado = true;
+
+        const hashNuevo = crypto.createHash('sha256').update(optimizada).digest('hex');
+        try {
+            await db.execute(
+                'UPDATE carteles SET hash_sha256 = ?, tamano_bytes = ?, ancho_px = ?, alto_px = ? WHERE id = ?',
+                [hashNuevo, optimizada.length, Number(metaFinal.width || info.width), Number(metaFinal.height || info.height), id]
+            );
+        } catch (errorDB) {
+            await fsp.rename(respaldo, rutaOriginal);
+            respaldo = null;
+            reemplazoRealizado = false;
+            throw errorDB;
+        }
+
+        await fsp.unlink(respaldo).catch(error => {
+            if (error.code !== 'ENOENT') console.error('[Cartelería] No se pudo retirar la copia de seguridad de optimización:', error.message);
+        });
+        respaldo = null;
+
+        const ahorroBytes = tamanoOriginal - optimizada.length;
+        const ahorroPorcentaje = Math.round((ahorroBytes / tamanoOriginal) * 100);
+        res.json({
+            mensaje: `Imagen optimizada: ${Math.round(ahorroPorcentaje)} % menos (${(tamanoOriginal / 1048576).toLocaleString('es-ES', { maximumFractionDigits: 2 })} MB → ${(optimizada.length / 1048576).toLocaleString('es-ES', { maximumFractionDigits: 2 })} MB).`,
+            tamano_anterior: tamanoOriginal,
+            tamano_nuevo: optimizada.length,
+            ahorro_bytes: ahorroBytes,
+            ahorro_porcentaje: ahorroPorcentaje
+        });
+    } catch (error) {
+        if (temporal) await fsp.unlink(temporal).catch(() => {});
+        if (respaldo && reemplazoRealizado) {
+            await fsp.rename(respaldo, path.join(IMAGE_DIR, path.basename(String((await db.execute('SELECT archivo FROM carteles WHERE id = ?', [id]))[0][0]?.archivo || '')))).catch(restoreError => {
+                console.error('[Cartelería] ERROR: no se pudo restaurar la imagen tras fallar la optimización:', restoreError);
+            });
+        } else if (respaldo) {
+            await fsp.unlink(respaldo).catch(() => {});
+        }
+        next(error);
+    }
 });
 
 // Editar duración, titular y destino de un cartel ya existente.

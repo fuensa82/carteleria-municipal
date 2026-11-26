@@ -112,7 +112,11 @@ function renderizarLista() {
         const estadoCalculado = obtenerEstadoCartel(c);
         const destinoTexto = c.destino === 'todas' ? 'Todas las pantallas' : (c.pantallas?.length ? c.pantallas.map(p => p.nombre).join(', ') : 'Sin pantallas asignadas');
         const tamanoBytes = Number(c.tamano_bytes) || 0;
-        const imagenPesada = tamanoBytes > 3 * 1024 * 1024;
+        const anchoImagen = Number(c.ancho_px) || 0;
+        const altoImagen = Number(c.alto_px) || 0;
+        const imagenPesada = tamanoBytes > 2 * 1024 * 1024
+            || anchoImagen > 2048
+            || altoImagen > 1366;
         const dimensiones = Number(c.ancho_px) > 0 && Number(c.alto_px) > 0
             ? `${Number(c.ancho_px)} × ${Number(c.alto_px)} px`
             : 'Pendiente';
@@ -123,7 +127,7 @@ function renderizarLista() {
             <div class="dato-tecnico peso-cartel"><strong>${pesoTexto}</strong>${imagenPesada ? '<span class="aviso-imagen-pesada">Pesada</span>' : ''}</div>
             <div class="dato-tecnico dimensiones-cartel">${escapar(dimensiones)}</div>
             <div class="estado-columna"><span class="estado ${estadoCalculado.clase}">${estadoCalculado.texto}</span></div>
-            <div class="acciones-cartel"><button type="button" class="boton-icono" title="Configurar" aria-label="Configurar cartel" data-accion="configurar" data-id="${Number(c.id)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5 4 4M4 20l4.2-.9L19 8.3a2.1 2.1 0 0 0-3-3L5.2 16.1 4 20Z"/></svg></button><button type="button" class="boton-icono" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'} cartel" data-accion="estado" data-id="${Number(c.id)}" data-activo="${activo ? '0' : '1'}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${activo ? '<path d="M12 3v9"/><path d="M6.2 6.2a8 8 0 1 0 11.6 0"/>' : '<path d="m8 5 11 7-11 7V5Z"/>'}</svg></button><button type="button" class="boton-icono eliminar" title="Eliminar" aria-label="Eliminar cartel" data-accion="eliminar" data-id="${Number(c.id)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div>
+            <div class="acciones-cartel">${imagenPesada && ['image/jpeg','image/png','image/webp'].includes(c.tipo_mime) ? `<button type="button" class="boton-icono optimizar" title="Reducir tamaño de imagen" aria-label="Reducir tamaño de imagen" data-accion="optimizar" data-id="${Number(c.id)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M5 20h14"/></svg></button>` : ''}<button type="button" class="boton-icono" title="Configurar" aria-label="Configurar cartel" data-accion="configurar" data-id="${Number(c.id)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5 4 4M4 20l4.2-.9L19 8.3a2.1 2.1 0 0 0-3-3L5.2 16.1 4 20Z"/></svg></button><button type="button" class="boton-icono" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'} cartel" data-accion="estado" data-id="${Number(c.id)}" data-activo="${activo ? '0' : '1'}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${activo ? '<path d="M12 3v9"/><path d="M6.2 6.2a8 8 0 1 0 11.6 0"/>' : '<path d="m8 5 11 7-11 7V5Z"/>'}</svg></button><button type="button" class="boton-icono eliminar" title="Eliminar" aria-label="Eliminar cartel" data-accion="eliminar" data-id="${Number(c.id)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div>
             <form class="configuracion-cartel oculto" data-config-id="${Number(c.id)}">
                 <h4>Configuración de «${escapar(c.nombre)}»</h4>
                 <div class="campo campo-corto"><label>Duración en pantalla (segundos)</label><input name="duracion_segundos" type="number" min="3" max="3600" value="${Number(c.duracion_segundos) || 15}" required></div>
@@ -378,8 +382,10 @@ listaCarteles.addEventListener('click', async e => {
     if (accion === 'cancelar-config') { cerrarModalConfiguracion(); return; }
     if (!Number.isSafeInteger(id) || id < 1) return;
     if (accion === 'configurar') { const form = listaCarteles.querySelector(`[data-config-id="${id}"]`); if (form) abrirModalConfiguracion(form); return; }
+    if (accion === 'optimizar' && !window.confirm('Se intentará reducir el peso conservando el tamaño de la imagen y su nombre de archivo. La pantalla descargará automáticamente la versión optimizada. ¿Continuar?')) return;
     boton.disabled = true;
     try {
+        if (accion === 'optimizar') { const r = await peticion(`/api/carteles/${id}/optimizar`, { method: 'POST' }); await cargarCarteles(); mostrarMensaje(r.mensaje); }
         if (accion === 'estado') { const r = await peticion(`/api/carteles/${id}/estado`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: boton.dataset.activo === '1' }) }); await cargarCarteles(); mostrarMensaje(r.mensaje); }
         if (accion === 'eliminar') { const c = carteles.find(x => Number(x.id) === id); if (!c || !window.confirm(`¿Quieres eliminar el cartel «${c.nombre}»?\n\nTambién se eliminará su archivo de imagen.`)) return; const r = await peticion(`/api/carteles/${id}`, { method: 'DELETE' }); await cargarCarteles(); mostrarMensaje(r.mensaje); }
     } catch (err) { mostrarMensaje(err.message, 'error'); } finally { boton.disabled = false; }
