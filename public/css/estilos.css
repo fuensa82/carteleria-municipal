@@ -740,3 +740,35 @@ body.visor-imagen-abierto { overflow: hidden; }
     .visor-imagen-contenido { max-width: 96vw; max-height: 82vh; }
     .visor-imagen-cerrar { top: 10px; right: 10px; }
 }
+
+
+
+/* Datos técnicos de la biblioteca: peso y etiqueta de imagen pesada */
+.dato-tecnico {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+.peso-cartel strong {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.aviso-imagen-pesada {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 3px 7px;
+    border-radius: 12px;
+    background: #fff3d6;
+    color: #805b12;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+}
