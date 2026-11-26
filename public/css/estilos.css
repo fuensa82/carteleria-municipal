@@ -242,7 +242,7 @@ h1 {
 
 .cabecera-lista, .fila-cartel {
     display: grid;
-    grid-template-columns: 125px minmax(180px, 1fr) 115px 180px;
+    grid-template-columns: 125px minmax(240px, 1fr) 105px 150px 90px 112px;
     align-items: center;
     gap: 18px;
     padding: 13px 22px;
@@ -345,9 +345,39 @@ h1 {
 
 .acciones-cartel {
     display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
 }
+
+.boton-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+    border: 1px solid #dce4de;
+    border-radius: 6px;
+    background: #fff;
+    color: #34463b;
+    cursor: pointer;
+}
+.boton-icono:hover { background: #f1f6f2; border-color: #b9cec0; }
+.boton-icono svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.boton-icono.eliminar { color: #a32d2d; }
+.boton-icono:focus-visible { outline: 2px solid #8bc5a5; outline-offset: 2px; }
 
 .boton-pequeno {
     padding: 7px 9px;
@@ -401,6 +431,16 @@ h1 {
     background: #fff;
     color: #68776e;
     font-size: 12px;
+}
+
+@media (max-width: 1050px) {
+    .cabecera-lista { display: none; }
+    .fila-cartel {
+        grid-template-columns: 112px minmax(0, 1fr) 105px 150px;
+        gap: 12px;
+    }
+    .estado-columna, .acciones-cartel { grid-column: 2; }
+    .acciones-cartel { margin-top: -3px; }
 }
 
 @media (max-width: 760px) {
