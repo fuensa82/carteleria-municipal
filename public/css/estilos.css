@@ -797,32 +797,12 @@ body.visor-imagen-abierto { overflow: hidden; }
 }
 
 
-
-/* Separación visual de origen, alta y periodo de publicación en la biblioteca */
-.resumen-cartel {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    column-gap: 14px;
-    row-gap: 3px;
-    margin-top: 5px;
-    margin-bottom: 7px;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #53645a;
+/* Botón de optimización: cuatro flechas verdes limpias, sin bloques de fondo */
+.boton-icono.optimizar svg {
+    width: 20px;
+    height: 20px;
+    display: block;
 }
-
-.resumen-cartel > span {
-    display: inline-block;
-    min-width: 0;
-}
-
-.resumen-cartel strong {
-    font-weight: 650;
-    color: #35483c;
-}
-
-.resumen-cartel .origen-cartel {
-    font-weight: 600;
-    color: #35483c;
+.boton-icono.optimizar {
+    color: #278052;
 }
