@@ -118,7 +118,7 @@ function renderizarLista() {
             : 'Pendiente';
         const pesoTexto = tamanoBytes > 0 ? formatearTamano(tamanoBytes) : 'Pendiente';
         return `<article class="fila-cartel" data-id="${Number(c.id)}">
-            <div class="miniatura"><img src="/media/imagenes/${encodeURIComponent(c.archivo)}" alt="${escapar(c.nombre)}" loading="lazy"></div>
+            <button type="button" class="miniatura miniatura-preview" aria-label="Abrir imagen completa: ${escapar(c.nombre)}" title="Ver imagen completa" data-preview-src="/media/imagenes/${encodeURIComponent(c.archivo)}"><img src="/media/imagenes/${encodeURIComponent(c.archivo)}" alt="${escapar(c.nombre)}" loading="lazy"></button>
             <div class="info-cartel"><div class="nombre-cartel">${escapar(c.nombre)}</div><div class="archivo-cartel">${escapar(c.archivo)}</div><div class="resumen-cartel"><span>${c.origen === 'web' ? 'Web municipal' : 'Manual'}</span><span>Alta: ${escapar(formatearFecha(c.fecha_alta))}</span><span>Publicación: ${escapar(formatearFechaCorta(c.fecha_inicio))} – ${escapar(formatearFechaCorta(c.fecha_fin))}</span></div><div class="detalle-configuracion"><strong>Duración:</strong> ${Number(c.duracion_segundos) || 15} s <span class="separador-detalle">·</span> <strong>Destino:</strong> ${escapar(destinoTexto)}</div></div>
             <div class="dato-tecnico peso-cartel"><strong>${pesoTexto}</strong>${imagenPesada ? '<span class="aviso-imagen-pesada">Pesada</span>' : ''}</div>
             <div class="dato-tecnico dimensiones-cartel">${escapar(dimensiones)}</div>
@@ -507,3 +507,61 @@ if (botonImportarWeb) {
         }
     });
 }
+
+
+// Visor ampliado de carteles: la miniatura se puede pulsar para verla a tamaño completo.
+(() => {
+    let modalVista = null;
+    let botonAnterior = null;
+
+    function crearModalVista() {
+        if (modalVista) return modalVista;
+        modalVista = document.createElement('div');
+        modalVista.className = 'visor-imagen-cartel';
+        modalVista.setAttribute('role', 'dialog');
+        modalVista.setAttribute('aria-modal', 'true');
+        modalVista.setAttribute('aria-label', 'Vista ampliada del cartel');
+        modalVista.innerHTML = `
+            <button type="button" class="visor-imagen-cerrar" aria-label="Cerrar imagen" title="Cerrar (Esc)">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+            <div class="visor-imagen-fondo" data-cerrar-visor></div>
+            <img class="visor-imagen-contenido" alt="Vista ampliada del cartel">
+        `;
+        document.body.appendChild(modalVista);
+        modalVista.querySelector('.visor-imagen-cerrar').addEventListener('click', cerrarModalVista);
+        modalVista.querySelector('[data-cerrar-visor]').addEventListener('click', cerrarModalVista);
+        return modalVista;
+    }
+
+    function abrirModalVista(boton) {
+        const modal = crearModalVista();
+        const imagen = modal.querySelector('.visor-imagen-contenido');
+        const miniatura = boton.querySelector('img');
+        imagen.src = boton.dataset.previewSrc || miniatura?.src || '';
+        imagen.alt = miniatura?.alt || 'Cartel municipal';
+        botonAnterior = boton;
+        modal.classList.add('abierto');
+        document.body.classList.add('visor-imagen-abierto');
+        modal.querySelector('.visor-imagen-cerrar').focus();
+    }
+
+    function cerrarModalVista() {
+        if (!modalVista) return;
+        modalVista.classList.remove('abierto');
+        document.body.classList.remove('visor-imagen-abierto');
+        const imagen = modalVista.querySelector('.visor-imagen-contenido');
+        imagen.removeAttribute('src');
+        if (botonAnterior?.isConnected) botonAnterior.focus();
+        botonAnterior = null;
+    }
+
+    document.addEventListener('click', event => {
+        const boton = event.target.closest('button.miniatura-preview');
+        if (boton) abrirModalVista(boton);
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && modalVista?.classList.contains('abierto')) cerrarModalVista();
+    });
+})();
