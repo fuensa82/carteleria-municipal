@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const cron = require('node-cron');
 const db = require('./db');
 const { importarNoticiasWeb } = require('./importador-web');
+const { metadatosImagen } = require('./image-metadata');
 
 const app = express();
 const PORT = process.env.PORT || 3100;
@@ -207,7 +208,7 @@ app.post('/api/importacion-web/ejecutar', async (req, res, next) => {
 app.get('/api/carteles', async (req, res, next) => {
     try {
         const [carteles] = await db.execute(`
-            SELECT id, nombre, archivo, tipo_mime, hash_sha256, activo,
+            SELECT id, nombre, archivo, tipo_mime, hash_sha256, tamano_bytes, ancho_px, alto_px, activo,
                    duracion_segundos, destino, titular, posicion_titular,
                    origen, url_origen, fecha_alta, fecha_modificacion,
                    DATE_FORMAT(fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
@@ -215,6 +216,28 @@ app.get('/api/carteles', async (req, res, next) => {
             FROM carteles
             ORDER BY fecha_alta DESC, id DESC
         `);
+
+        // Completar metadatos de carteles anteriores a esta mejora, una sola vez por archivo.
+        for (const cartel of carteles) {
+            if (cartel.tamano_bytes != null && cartel.ancho_px != null && cartel.alto_px != null) continue;
+            try {
+                const archivoSeguro = path.basename(cartel.archivo);
+                const rutaImagen = path.join(IMAGE_DIR, archivoSeguro);
+                const [contenido, estadisticas] = await Promise.all([fsp.readFile(rutaImagen), fsp.stat(rutaImagen)]);
+                const meta = metadatosImagen(contenido, cartel.tipo_mime);
+                const tamano = Number(estadisticas.size);
+                cartel.tamano_bytes = tamano;
+                cartel.ancho_px = meta.ancho_px;
+                cartel.alto_px = meta.alto_px;
+                await db.execute(
+                    'UPDATE carteles SET tamano_bytes = ?, ancho_px = ?, alto_px = ? WHERE id = ?',
+                    [tamano, meta.ancho_px, meta.alto_px, cartel.id]
+                );
+            } catch (error) {
+                // Si falta un archivo, se muestra la ficha sin metadatos y se conserva el resto del listado.
+                console.warn(`[Cartelería] No se pudieron calcular metadatos del cartel ${cartel.id}: ${error.message}`);
+            }
+        }
 
         if (carteles.length) {
             const ids = carteles.map(c => c.id);
@@ -428,14 +451,16 @@ app.post('/api/carteles', (req, res, next) => {
 
             const contenido = await fsp.readFile(req.file.path);
             const hash = crypto.createHash('sha256').update(contenido).digest('hex');
+            const meta = metadatosImagen(contenido, req.file.mimetype);
 
             const [resultado] = await db.execute(`
                 INSERT INTO carteles
-                    (nombre, archivo, tipo_mime, hash_sha256, activo, fecha_inicio, fecha_fin,
-                     duracion_segundos, destino, titular, posicion_titular)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+                    (nombre, archivo, tipo_mime, hash_sha256, tamano_bytes, ancho_px, alto_px,
+                     activo, fecha_inicio, fecha_fin, duracion_segundos, destino, titular, posicion_titular)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
             `, [
                 nombre, req.file.filename, req.file.mimetype, hash,
+                meta.tamano_bytes, meta.ancho_px, meta.alto_px,
                 fechaInicio, fechaFin, duracion, destino, titular || null, posicionTitular
             ]);
 

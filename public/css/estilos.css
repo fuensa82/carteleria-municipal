@@ -627,3 +627,28 @@ h1 {
 .campo-fecha input { width: 100%; min-width: 0; box-sizing: border-box; }
 .campo-fecha small { color: #68776e; font-size: 12px; }
 @media (max-width: 560px) { .campo-fechas { grid-template-columns: 1fr; } }
+
+
+/* Biblioteca compacta: columnas técnicas independientes y acciones iconográficas */
+.cabecera-lista, .fila-cartel { display:grid; grid-template-columns:88px minmax(220px,1fr) 82px 125px 78px 112px; align-items:center; gap:10px; padding:8px 14px; }
+.cabecera-lista { font-size:10px; letter-spacing:.02em; }
+.fila-cartel { min-height:0; }
+.miniatura { width:78px; height:56px; }
+.miniatura img { display:block; width:100%; height:100%; object-fit:contain; }
+.nombre-cartel { margin-bottom:3px; font-size:13px; line-height:1.25; }
+.archivo-cartel { font-size:10px; line-height:1.2; overflow-wrap:anywhere; }
+.resumen-cartel { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:4px; font-size:10px; line-height:1.3; }
+.detalle-configuracion { margin-top:3px; font-size:11px; line-height:1.3; }
+.dato-tecnico { min-width:0; font-size:11px; line-height:1.35; overflow-wrap:anywhere; }
+.peso-cartel { display:flex; flex-direction:column; gap:4px; }
+.dimensiones-cartel { white-space:nowrap; }
+.aviso-imagen-pesada { display:inline-flex; align-self:flex-start; border-radius:4px; padding:2px 5px; color:#875512; background:#fff2d7; font-size:10px; font-weight:700; }
+.acciones-cartel { display:flex; flex-wrap:nowrap; gap:4px; }
+.boton-icono { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; padding:0; border:1px solid #d6e0d9; border-radius:6px; background:#fff; color:#214f38; font-size:16px; line-height:1; cursor:pointer; }
+.boton-icono:hover { background:#edf5ef; border-color:#a9c8b5; }
+.boton-icono.eliminar { color:#b32626; }
+@media (max-width:1100px) { .cabecera-lista,.fila-cartel { grid-template-columns:76px minmax(160px,1fr) 70px 110px 68px 100px; gap:7px; padding:8px 10px; } .miniatura { width:68px;height:50px; } }
+@media (max-width:850px) { .cabecera-lista { display:none; } .fila-cartel { grid-template-columns:76px minmax(0,1fr); gap:8px; padding:10px; } .info-cartel { grid-column:2; } .dato-tecnico.peso-cartel,.dato-tecnico.dimensiones-cartel { grid-column:2; display:inline-block; margin-right:10px; } .estado-columna,.acciones-cartel { grid-column:2; } .acciones-cartel { margin-top:3px; } }
+/* Iconos SVG locales: sin fuentes ni dependencias externas. */
+.boton-icono svg { width:16px; height:16px; display:block; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.boton-icono:focus-visible { outline:2px solid #347653; outline-offset:2px; }

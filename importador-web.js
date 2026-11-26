@@ -2,6 +2,7 @@ const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs/promises');
 const crypto = require('crypto');
+const { metadatosImagen } = require('./image-metadata');
 
 const URL_PORTADA = 'https://www.fuensalida.com/';
 const HOSTS_PERMITIDOS = new Set(['www.fuensalida.com', 'fuensalida.com']);
@@ -113,7 +114,8 @@ async function descargarImagen(urlImagen, directorioImagenes) {
     return {
         archivo,
         mime,
-        hash: crypto.createHash('sha256').update(buffer).digest('hex')
+        hash: crypto.createHash('sha256').update(buffer).digest('hex'),
+        ...metadatosImagen(buffer, mime)
     };
 }
 
@@ -161,15 +163,16 @@ async function importarNoticiasWeb(db, directorioImagenes) {
 
             const [insertado] = await db.execute(`
                 INSERT INTO carteles
-                    (nombre, archivo, tipo_mime, hash_sha256, activo,
+                    (nombre, archivo, tipo_mime, hash_sha256, tamano_bytes, ancho_px, alto_px, activo,
                      duracion_segundos, destino, titular, posicion_titular,
                      origen, url_origen, hash_url_origen, fecha_activacion, fecha_inicio, fecha_fin)
-                VALUES (?, ?, ?, ?, 1, ?, 'todas', ?, 'inferior', 'web', ?, ?, NOW(), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY))
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'todas', ?, 'inferior', 'web', ?, ?, NOW(), CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY))
             `, [
                 nombre,
                 imagenLocal.archivo,
                 imagenLocal.mime,
                 imagenLocal.hash,
+                imagenLocal.tamano_bytes, imagenLocal.ancho_px, imagenLocal.alto_px,
                 DURACION_PREDETERMINADA,
                 titular,
                 urlCanonica,
